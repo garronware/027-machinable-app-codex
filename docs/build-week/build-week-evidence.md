@@ -282,6 +282,16 @@ Week is not automatically classified as new if its behavior or data came from
 - Remaining work: commit and push, deploy Railway, verify `/health`, deploy
   Vercel, set exact cross-origin values, and complete one deployed PDF run.
 
+### July 21, 2026 — repository checkpoint
+
+- Commit `10c4a11` records the Build Week pilot implementation, desktop UI,
+  offline tests, deployment packaging, and submission documentation described
+  above.
+- The commit excludes `.env`, private drawings, redacted evaluation copies,
+  saved model runs, local build output, and dependency directories.
+- Remaining work: publish the repository, deploy and verify both services, run
+  one authorized end-to-end deployed drawing, and complete the submission.
+
 ### July 21, 2026 — recurring evidence reconciliation at 5:28 p.m. EDT
 
 - Classification: pre-existing and reused documentation maintenance; no product
