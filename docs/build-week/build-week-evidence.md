@@ -292,6 +292,16 @@ Week is not automatically classified as new if its behavior or data came from
 - Remaining work: publish the repository, deploy and verify both services, run
   one authorized end-to-end deployed drawing, and complete the submission.
 
+### July 21, 2026 — GitHub publication checkpoint
+
+- The committed `main` branch was pushed to
+  `https://github.com/garronware/027-machinable-for-build-week`.
+- Final pushed head before deployment is `e0d7435`; a later documentation-only
+  commit may supersede that hash without changing application behavior.
+- Remaining work: confirm unauthenticated judge access, deploy Railway and
+  Vercel, verify cross-origin configuration, and run one authorized deployed
+  drawing.
+
 ### July 21, 2026 — recurring evidence reconciliation at 5:28 p.m. EDT
 
 - Classification: pre-existing and reused documentation maintenance; no product
@@ -383,7 +393,7 @@ Week is not automatically classified as new if its behavior or data came from
 | Meaningful-extension disclosure | VERIFIED | This record and README distinguish 015 from Build Week work |
 | Project uses Codex and GPT-5.6 | VERIFIED IN CODE | GPT-5.6 Sol/Terra runtime and dated Codex task evidence; controlled live evaluation still pending |
 | Working project matches submitted claims | PENDING | Run final end-to-end demo using an authorized PDF and describe only observed behavior |
-| Repository URL and judge access | BLOCKED | No Git remote is configured; choose public licensed repo or private sharing with required judge accounts |
+| Repository URL and judge access | PENDING | Repository is pushed to GitHub; confirm the URL opens for a signed-out judge |
 | Relevant repository license | BLOCKED | User must select/approve a license before making the repository public |
 | Judge-accessible deployment or test build | BLOCKED | No deployment URL or test build is verified |
 | README setup, testing, and Codex collaboration | VERIFIED LOCALLY | README contains current instructions and provenance; judge access still depends on repository publication |
