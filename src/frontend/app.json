@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Machinable",
+    "slug": "machinable",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "machinable",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      "expo-router",
+      "expo-document-picker"
+    ],
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
+

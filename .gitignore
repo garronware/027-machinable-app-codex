@@ -1,0 +1,13 @@
+.env
+.DS_Store
+.pytest_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+*.py[cod]
+src/frontend/.expo/
+src/frontend/node_modules/
+tests/evaluation/runs/
+
+# Private local evaluation drawings. Keep the authoritative index tracked.
+part-prints/*.pdf
