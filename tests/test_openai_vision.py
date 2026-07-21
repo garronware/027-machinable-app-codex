@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from backend.clients.openai_vision import OpenAIVisionClient
+from backend.clients.openai_vision import OpenAIDualReaderClient, OpenAIVisionClient
 from backend.domain.models import (
     BoundingDimensions,
     DimensionEvidence,
@@ -20,13 +20,12 @@ def _dimension(value: float | None) -> DimensionEvidence:
     return DimensionEvidence(
         value=value,
         source=(
-            DimensionSource.EXPLICIT_OVERALL
-            if value is not None
-            else DimensionSource.NOT_FOUND
+            DimensionSource.EXPLICIT_OVERALL if value is not None else DimensionSource.NOT_FOUND
         ),
         dimension_path=None,
         evidence="explicit overall dimension" if value is not None else None,
         uncertainty=None,
+        chain_terms=[],
     )
 
 
@@ -36,9 +35,15 @@ async def test_call_uses_one_authoritative_prompt_and_high_detail_pdf():
         part_number="TEST",
         part_name=None,
         shape=Shape.ROUND,
-        material_name="A2 Tool Steel",
+        supplier_form_candidate="Round Bar",
+        material_callout_raw="A2 Tool Steel",
+        material_callout_evidence=["Title block material field"],
         material_classification=MaterialClassification.TOOL_STEEL,
         projection="THIRD_ANGLE",
+        identified_views=["FRONT"],
+        dimension_claims=[],
+        drawing_stock_callout=None,
+        tabulated_dimension_evidence=[],
         bounding=BoundingDimensions(
             units=Units.IN,
             diameter=_dimension(1.0),
@@ -64,7 +69,7 @@ async def test_call_uses_one_authoritative_prompt_and_high_detail_pdf():
     result = await client.interpret_pdf(b"%PDF-1.7\n", "drawing.pdf")
     assert result is interpretation
     assert captured["model"] == "gpt-5.6-sol"
-    assert captured["reasoning"] == {"effort": "medium"}
+    assert captured["reasoning"] == {"effort": "high"}
     assert captured["store"] is False
     assert captured["text_format"] is DrawingInterpretation
 
@@ -81,3 +86,53 @@ async def test_call_uses_one_authoritative_prompt_and_high_detail_pdf():
     assert file_item["detail"] == "high"
     assert file_item["file_data"].startswith("data:application/pdf;base64,")
 
+
+@pytest.mark.asyncio
+async def test_dual_reader_preserves_independent_sol_and_terra_results():
+    interpretation = DrawingInterpretation(
+        part_number="TEST",
+        part_name=None,
+        shape=Shape.ROUND,
+        supplier_form_candidate="Round Bar",
+        material_callout_raw="A2 Tool Steel",
+        material_callout_evidence=["Title block material field"],
+        material_classification=MaterialClassification.TOOL_STEEL,
+        bounding=BoundingDimensions(
+            units=Units.IN,
+            diameter=_dimension(1.0),
+            thickness=_dimension(None),
+            width=_dimension(None),
+            length=_dimension(2.0),
+        ),
+        projection="THIRD_ANGLE",
+        identified_views=["FRONT"],
+        dimension_claims=[],
+        drawing_stock_callout=None,
+        tabulated_dimension_evidence=[],
+        warnings=[],
+        conflicts=[],
+        unsupported_reason=None,
+    )
+
+    class FakeReader:
+        def __init__(self, model: str):
+            self.model = model
+
+        async def interpret_pdf(self, pdf_bytes: bytes, filename: str):
+            assert pdf_bytes.startswith(b"%PDF")
+            assert filename == "drawing.pdf"
+            return interpretation.model_copy(deep=True)
+
+    client = OpenAIDualReaderClient(api_key="test-key")
+    client.readers = [
+        FakeReader("gpt-5.6-sol"),
+        FakeReader("gpt-5.6-terra"),
+    ]
+
+    batch = await client.interpret_pdf(b"%PDF-1.7\n", "drawing.pdf")
+
+    assert [read.reader_model for read in batch.reads] == [
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+    ]
+    assert not batch.failures

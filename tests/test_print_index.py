@@ -23,13 +23,12 @@ def _dimension(value: float | None) -> DimensionEvidence:
     return DimensionEvidence(
         value=value,
         source=(
-            DimensionSource.EXPLICIT_OVERALL
-            if value is not None
-            else DimensionSource.NOT_FOUND
+            DimensionSource.EXPLICIT_OVERALL if value is not None else DimensionSource.NOT_FOUND
         ),
         dimension_path=None,
         evidence="test evidence" if value is not None else None,
         uncertainty=None,
+        chain_terms=[],
     )
 
 
@@ -44,6 +43,13 @@ def test_every_copied_pdf_is_indexed_and_every_eval_case_exists():
     assert cases
     for case in cases:
         assert (PART_PRINTS_DIR / case.filename).is_file()
+        if case.shape is Shape.ROUND:
+            assert case.diameter is not None
+            assert case.length is not None
+        else:
+            assert case.thickness is not None
+            assert case.width is not None
+            assert case.length is not None
 
 
 def test_index_dimension_parser_uses_recorded_result_and_primary_units():
@@ -58,9 +64,15 @@ def test_mismatch_is_reported_without_normalizing_model_output():
         part_number=case.part_number,
         part_name=None,
         shape=Shape.ROUND,
-        material_name="A2 Tool Steel",
+        supplier_form_candidate="Round Bar",
+        material_callout_raw="A2 Tool Steel",
+        material_callout_evidence=["Title block material field"],
         material_classification=MaterialClassification.TOOL_STEEL,
         projection="THIRD_ANGLE",
+        identified_views=["FRONT"],
+        dimension_claims=[],
+        drawing_stock_callout=None,
+        tabulated_dimension_evidence=[],
         bounding=BoundingDimensions(
             units=Units(case.units),
             diameter=_dimension(case.diameter),
@@ -73,11 +85,6 @@ def test_mismatch_is_reported_without_normalizing_model_output():
         unsupported_reason=None,
     )
     report = compare_interpretation(case, interpretation)
-    length = next(
-        dimension
-        for dimension in report["dimensions"]
-        if dimension["axis"] == "length"
-    )
+    length = next(dimension for dimension in report["dimensions"] if dimension["axis"] == "length")
     assert length["actual"] == (case.length or 1.0) * 0.5
     assert length["bucket"] == "UNDER"
-

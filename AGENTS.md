@@ -14,14 +14,10 @@ porting; do not assume its structure or behavior is correct.
 
 Work in this order:
 
-1. Replace global failure behavior with field-level results and dependency
-   blocking.
-2. Add symmetric GPT-5.6 Sol High and Terra High drawing readers, PDF evidence,
-   and field-level arbitration.
-3. Build detailed material resolution and reconnect the proven deterministic
-   shop calculations.
-4. Replace the Expo reference UI with the desktop-first Next.js production UI.
-5. Run controlled evaluations before adding optional audit calls or live
+1. Run controlled evaluations of Sol, Terra, and their field agreement against
+   the same approved cases.
+2. Extend material-code resolution only with authoritative mappings.
+3. Harden and deploy only after evaluation, before adding optional audit calls or live
    supplier integrations.
 
 The immediate target is a submission-ready, safely testable pilot. Do not claim
@@ -29,25 +25,25 @@ the app is production-ready without evidence supporting that claim.
 
 ## Current State
 
-The working baseline has a FastAPI backend, one GPT-5.6 Sol call, an Expo
-reference client, deterministic machining/stock logic, and offline tests. This
-baseline does not yet implement the authoritative dual-reader, field-level,
-desktop-web architecture in `docs/build-week/build-brief.md`.
+The backend now runs independent GPT-5.6 Sol High and Terra High reads with one
+shared contract, extracts deterministic PDF text evidence, arbitrates fields
+independently, returns partial success without a global 422, resolves common
+explicit materials conservatively, reconnects deterministic shop math, and
+supports correction-only recalculation without model calls. Offline tests cover
+these paths.
 
-The Expo application and global 422-style uncertainty behavior are legacy
-baseline implementation gaps, not current product direction. Do not describe
-them as the intended production experience. The application has received
-targeted live-model evaluations but has not completed the controlled evaluation
-plan or been deployed.
+The Expo reference application has been replaced by the approved desktop
+Next.js split-view UI. It displays complete and partial results together,
+supports corrections and deterministic recalculation, and uses the contemporary
+B2B visual direction. The new dual-reader path has not yet received controlled
+paid evaluation and the application has not been deployed.
 
 Before creating a file or directory, show the user its proposed path, purpose,
 and reason. Approval may cover one coherent batch.
 
 ## Technology Direction
 
-- Frontend: desktop-first Next.js/React with strict TypeScript. Existing Expo
-  code is behavioral reference only and should not receive new production UI
-  investment.
+- Frontend: desktop-first Next.js/React with strict TypeScript.
 - Backend: FastAPI with typed Python and Pydantic data contracts.
 - Models: server-side independent GPT-5.6 Sol High and Terra High readers using
   one shared core contract.
@@ -63,9 +59,7 @@ Werk24 and Anthropic must not be added to the new runtime.
 Use this approved structure as it becomes necessary:
 
 - `src/backend/`: API, orchestration, model integration, and domain logic.
-- `src/frontend/`: desktop Next.js application and frontend API client once the
-  approved migration begins; the existing Expo files are temporary reference
-  implementation.
+- `src/frontend/`: desktop Next.js application and typed frontend API client.
 - `tests/`: unit, integration, evaluation, and approved fixture files.
 - `data/stock/`: documented stock-reference data.
 - `supabase/migrations/`: versioned database migrations.
@@ -77,11 +71,9 @@ Do not create empty directories.
 ## Commands
 
 - `make setup`: install backend and frontend dependencies.
-- `make dev`: run the currently implemented FastAPI and Expo reference servers;
-  update this command when the Next.js frontend replaces Expo.
+- `make dev`: run FastAPI and the Next.js desktop frontend.
 - `make test`: run deterministic offline backend tests.
-- `make lint`: run the currently implemented Python, Expo-reference, and strict
-  TypeScript checks; update it with the frontend migration.
+- `make lint`: run Python lint, Next.js lint, and strict TypeScript checks.
 - `make check`: run lint and offline tests.
 
 Paid model evaluation is opt-in through
@@ -93,9 +85,8 @@ the default test or check commands.
 - `part-prints/print-index.md` is the only authoritative source of expected
   bounding dimensions for the local evaluation corpus.
 - The current model invocation rule set is
-  `src/backend/prompts/drawing_interpretation.md`. Evolve it into one shared
-  authoritative core used by Sol and Terra; reader-specific strategy text must
-  not create competing interpretation rules.
+  `src/backend/prompts/drawing_interpretation.md`. It is the shared authoritative
+  core used by Sol and Terra; do not create competing prompt copies.
 - Assume third-angle projection unless the drawing states otherwise, reconcile
   all relevant views, prefer explicit dimensions and text, and use maximum
   external finished-part extents.
@@ -179,9 +170,19 @@ the default test or check commands.
 
 - Keep symmetric GPT-5.6 Sol High and Terra High reading central to the
   submitted workflow.
-- Maintain submission requirements and evidence in `docs/build-week/`.
-- Do not invent test results, deployment URLs, demo links, repository status,
-  or a `/feedback` Codex Session ID.
+- Treat Machinable as a meaningfully extended pre-existing project; never imply
+  that the entire application was created during Build Week.
+- `docs/build-week/build-week-evidence.md` is the sole provenance and
+  submission-readiness record. Classify material work as reused, materially
+  modified, newly created, or planned, and record previous behavior, new
+  behavior, completed Codex task, commit when available, verification, and
+  remaining risk.
+- Evidence entries are append-only except for clearly labeled factual
+  corrections.
+- Update the build brief, README, or memory only when that document's own
+  responsibility changes; do not mirror the same status across documents.
+- Do not invent dates, results, permissions, commits, repository or deployment
+  URLs, demo links, or a `/feedback` Codex Session ID.
 
 ## Definition of Done
 

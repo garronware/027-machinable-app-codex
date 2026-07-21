@@ -1,4 +1,4 @@
-"""Opt-in paid GPT-5.6 Sol evaluation against the live print index."""
+"""Opt-in paid Sol/Terra evaluation against the live print index."""
 
 from __future__ import annotations
 
@@ -7,11 +7,15 @@ import asyncio
 import hashlib
 import json
 import sys
+from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
-from backend.clients.openai_vision import OpenAIVisionClient
+from backend.clients.openai_vision import OpenAIDualReaderClient
 from backend.core.config import settings
+from backend.domain.models import Shape
+from backend.domain.pdf_evidence import extract_pdf_evidence
+from backend.domain.pipeline import build_analysis_response
 from tests.evaluation.print_index import (
     PART_PRINTS_DIR,
     compare_interpretation,
@@ -24,6 +28,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--only",
         help="Run cases whose filename or part number contains this text.",
+    )
+    parser.add_argument(
+        "--case",
+        action="append",
+        default=[],
+        help=(
+            "Run one exact filename or part number. Repeat for a controlled set; "
+            "the normal limit is ignored."
+        ),
     )
     parser.add_argument(
         "--limit",
@@ -41,6 +54,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Optional historical JSON report path; no file is written by default.",
     )
+    parser.add_argument(
+        "--prints-dir",
+        type=Path,
+        default=PART_PRINTS_DIR,
+        help=(
+            "Directory containing the PDF copies to send. Dimensional truth still "
+            "comes only from part-prints/print-index.md."
+        ),
+    )
     return parser
 
 
@@ -50,7 +72,26 @@ async def run(args: argparse.Namespace) -> int:
         return 2
 
     cases = load_truth_cases()
-    if args.only:
+    if args.case:
+        selected = []
+        missing = []
+        for requested in args.case:
+            matches = [
+                case
+                for case in cases
+                if requested == case.filename or requested == case.part_number
+            ]
+            if not matches:
+                missing.append(requested)
+            selected.extend(matches)
+        if missing:
+            print(
+                "No complete dimensional truth case for: " + ", ".join(missing),
+                file=sys.stderr,
+            )
+            return 2
+        cases = list(dict.fromkeys(selected))
+    elif args.only:
         needle = args.only.lower()
         cases = [
             case
@@ -58,80 +99,140 @@ async def run(args: argparse.Namespace) -> int:
             if needle in case.filename.lower()
             or needle in case.part_number.lower()
         ]
-    if not args.all:
+    if not args.all and not args.case:
         cases = cases[: max(args.limit, 0)]
 
-    client = OpenAIVisionClient(
+    client = OpenAIDualReaderClient(
         api_key=settings.openai_api_key,
-        model=settings.openai_model,
+        sol_model=settings.openai_sol_model,
+        terra_model=settings.openai_terra_model,
         reasoning_effort=settings.openai_reasoning_effort,
     )
     reports: list[dict] = []
     for case in cases:
-        path = PART_PRINTS_DIR / case.filename
+        path = args.prints_dir / case.filename
         print(f"evaluate {case.filename}")
         try:
-            interpretation = await client.interpret_pdf(
-                path.read_bytes(), case.filename
+            pdf_bytes = path.read_bytes()
+            batch = await client.interpret_pdf(pdf_bytes, case.filename)
+            analysis = build_analysis_response(
+                batch,
+                extract_pdf_evidence(pdf_bytes),
             )
-            comparison = compare_interpretation(case, interpretation)
+            reader_reports = [
+                {
+                    "model": read.reader_model,
+                    "error": None,
+                    "interpretation": read.interpretation.model_dump(mode="json"),
+                    "comparison": compare_interpretation(case, read.interpretation),
+                }
+                for read in batch.reads
+            ] + [
+                {
+                    "model": failure.reader_model,
+                    "error": failure.error,
+                    "interpretation": None,
+                    "comparison": None,
+                }
+                for failure in batch.failures
+            ]
             reports.append(
                 {
                     "file": case.filename,
+                    "part_number": case.part_number,
+                    "expected_shape": case.shape.value,
                     "error": None,
-                    "interpretation": interpretation.model_dump(mode="json"),
-                    "comparison": comparison,
+                    "readers": reader_reports,
+                    "analysis": analysis.model_dump(mode="json"),
                 }
             )
         except Exception as exc:  # continue to preserve evidence from other cases
             reports.append(
                 {
                     "file": case.filename,
+                    "part_number": case.part_number,
+                    "expected_shape": case.shape.value,
                     "error": f"{type(exc).__name__}: {exc}",
-                    "interpretation": None,
-                    "comparison": None,
+                    "readers": [],
+                    "analysis": None,
                 }
             )
             print(f"error    {case.filename}: {exc}", file=sys.stderr)
 
-    buckets: dict[str, int] = {}
+    buckets: dict[str, Counter[str]] = defaultdict(Counter)
+    shape_results: dict[str, Counter[str]] = defaultdict(Counter)
+    presentations: Counter[str] = Counter()
+    dimension_statuses: Counter[str] = Counter()
+    recommendations = 0
+    reader_errors = 0
     for report in reports:
-        comparison = report["comparison"]
-        if not comparison:
+        if report["error"]:
             continue
         print(f"\n{report['file']}")
-        print(
-            "  shape: "
-            f"{comparison['actual_shape']} "
-            f"(expected {comparison['expected_shape']})"
-        )
-        for dimension in comparison["dimensions"]:
-            bucket = dimension["bucket"]
-            buckets[bucket] = buckets.get(bucket, 0) + 1
+        for reader in report["readers"]:
+            if reader["error"]:
+                reader_errors += 1
+                print(f"  {reader['model']}: ERROR {reader['error']}")
+                continue
+            comparison = reader["comparison"]
+            shape_results[reader["model"]][
+                "MATCH" if comparison["shape_match"] else "MISMATCH"
+            ] += 1
             print(
-                f"  {dimension['axis']}: "
-                f"returned {dimension['actual']!r}, "
-                f"expected {dimension['expected']!r} "
-                f"[{bucket}]"
+                f"  {reader['model']} shape: {comparison['actual_shape']} "
+                f"(expected {comparison['expected_shape']})"
             )
-            if dimension["dimension_path"]:
-                print(f"    path: {dimension['dimension_path']}")
-            if dimension["evidence"]:
-                print(f"    evidence: {dimension['evidence']}")
+            for dimension in comparison["dimensions"]:
+                bucket = dimension["bucket"]
+                buckets[reader["model"]][bucket] += 1
+                print(
+                    f"    {dimension['axis']}: returned {dimension['actual']!r}, "
+                    f"expected {dimension['expected']!r} [{bucket}]"
+                )
+                if dimension["dimension_path"]:
+                    print(f"      path: {dimension['dimension_path']}")
+                if dimension["evidence"]:
+                    print(f"      evidence: {dimension['evidence']}")
+
+        analysis = report["analysis"]
+        presentations[analysis["presentation_status"]] += 1
+        recommendations += int(analysis["recommendation"] is not None)
+        required_axes = (
+            ("diameter", "length")
+            if report["expected_shape"] == Shape.ROUND.value
+            else ("thickness", "width", "length")
+        )
+        for axis in required_axes:
+            dimension_statuses[analysis["dimensions"][axis]["status"]] += 1
+        print(
+            "  combined: "
+            f"{analysis['presentation_status']}; "
+            f"recommendation={'yes' if analysis['recommendation'] else 'no'}"
+        )
 
     payload = {
         "historical_report": True,
         "generated_at": datetime.now(UTC).isoformat(),
-        "model": settings.openai_model,
+        "models": [settings.openai_sol_model, settings.openai_terra_model],
         "reasoning_effort": settings.openai_reasoning_effort,
         "prompt_sha256": hashlib.sha256(
-            client.prompt.encode("utf-8")
+            client.readers[0].prompt.encode("utf-8")
         ).hexdigest(),
         "truth_source": "part-prints/print-index.md (read live for this run)",
+        "input_directory": str(args.prints_dir),
         "summary": {
             "parts": len(reports),
             "errors": sum(1 for report in reports if report["error"]),
-            "dimension_buckets": buckets,
+            "reader_errors": reader_errors,
+            "dimension_buckets_by_model": {
+                model: dict(counts) for model, counts in buckets.items()
+            },
+            "shape_results_by_model": {
+                model: dict(counts) for model, counts in shape_results.items()
+            },
+            "combined_dimension_statuses": dict(dimension_statuses),
+            "presentation_statuses": dict(presentations),
+            "recommendations": recommendations,
         },
         "reports": reports,
     }

@@ -8,21 +8,31 @@ from typing import Annotated
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from openai import OpenAIError
 from pydantic import ValidationError
+from starlette.concurrency import run_in_threadpool
 
 from backend.clients.openai_vision import ModelOutputError
 from backend.core.config import settings
 from backend.domain.dimensions import DrawingUncertainError
-from backend.domain.pipeline import build_recommendation
+from backend.domain.models import (
+    AnalysisResponse,
+    RecalculationRequest,
+    RecalculationResponse,
+)
+from backend.domain.pdf_evidence import PdfEvidenceError, extract_pdf_evidence
+from backend.domain.pipeline import (
+    build_analysis_response,
+    recalculate_from_confirmed_facts,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/analyze")
+@router.post("/analyze", response_model=AnalysisResponse)
 async def analyze_drawing(
     request: Request,
     file: Annotated[UploadFile, File()],
-) -> dict:
+) -> AnalysisResponse:
     if not file.filename:
         raise HTTPException(status_code=400, detail="No PDF selected.")
     if not file.filename.lower().endswith(".pdf"):
@@ -45,28 +55,34 @@ async def analyze_drawing(
             detail="The uploaded file does not contain a valid PDF signature.",
         )
 
-    vision_client = getattr(request.app.state, "vision_client", None)
-    if vision_client is None:
+    try:
+        pdf_evidence = await run_in_threadpool(extract_pdf_evidence, pdf_bytes)
+    except PdfEvidenceError as exc:
+        raise HTTPException(status_code=415, detail=str(exc)) from exc
+
+    drawing_reader = getattr(request.app.state, "drawing_reader", None)
+    if drawing_reader is None:
         raise HTTPException(
             status_code=503,
             detail="OPENAI_API_KEY is not configured on the backend.",
         )
 
     try:
-        interpretation = await vision_client.interpret_pdf(
-            pdf_bytes, file.filename
-        )
+        reader_batch = await drawing_reader.interpret_pdf(pdf_bytes, file.filename)
     except (OpenAIError, ModelOutputError, ValidationError) as exc:
         logger.exception("GPT-5.6 drawing interpretation failed")
         raise HTTPException(
             status_code=502,
-            detail=(
-                "The drawing model did not return a valid interpretation. "
-                "No stock recommendation was produced."
-            ),
+            detail="The drawing readers did not return a valid interpretation.",
         ) from exc
+    return build_analysis_response(reader_batch, pdf_evidence)
 
+
+@router.post("/recalculate", response_model=RecalculationResponse)
+async def recalculate_stock(
+    payload: RecalculationRequest,
+) -> RecalculationResponse:
     try:
-        return build_recommendation(interpretation)
+        return recalculate_from_confirmed_facts(payload)
     except (DrawingUncertainError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

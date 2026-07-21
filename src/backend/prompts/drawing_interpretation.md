@@ -21,6 +21,11 @@ conceal uncertainty, or use external data.
 - A warning is not a substitute for a missing required value. If views conflict
   or more than one valid reading remains, describe the conflict and leave the
   affected value null.
+- Attempt every requested field independently. Failure to resolve dimensions
+  must not prevent returning an explicit material callout, stock shape, units,
+  part identity, or drawing-specified stock callout.
+- You are one of two independent full readers. Do not assume the other reader
+  will fill gaps, and do not speculate about the other reader's answer.
 
 ## Evidence order
 
@@ -85,8 +90,39 @@ the nominal finished part before machining allowance.
 - Every derived overall must use source `CHAINED_DIMENSIONS` and include
   `dimension_path` showing the complete arithmetic, result, and units, for
   example `0.610 + 1.485 = 2.095 IN`.
+- Every derived overall must also include structured `chain_terms` containing
+  each visible operand, its raw text, numeric value, units, and evidence.
 - For an explicit or reconciled dimension, use `evidence` to name the relevant
   view, callout, title-block field, or note.
+
+## Tabulated drawings
+
+Resolve tabulated dimensions explicitly before proposing a bounding envelope:
+
+1. Identify the table and the meaning of its key column.
+2. Determine whether rows are selected by part number, item number, size code,
+   dash number, or another referenced-standard identifier.
+3. Find the target selector in the title block or drawing callouts.
+4. Select the matching row; never default to the first row.
+5. Resolve each applicable lettered dimension from that row.
+6. Return the selector type, selector, key-column header, selected row,
+   letter-to-value mappings, and evidence in `tabulated_dimension_evidence`.
+
+For a Cummins table headed `PART NO.` or `ITEM NO.`, select by the target part or
+item number. For a Titan table whose key header references `AS4395`, match each
+feature's applicable size or dash code, such as `AS4395-03`, to the corresponding
+row before resolving lettered dimensions. A part can reference different size
+codes at different features; do not assume one table row applies to the entire
+PDF. If a referenced standard is required but its meaning cannot be established
+from the supplied drawing, flag the affected value rather than guessing.
+
+## Drawing-specified stock
+
+An engineer-specified raw stock size is separate from the finished-part bounding
+envelope. When present, return the exact callout, shape, dimensions, units, and
+evidence in `drawing_stock_callout`. Do not copy those stock dimensions into the
+finished bounding dimensions unless the drawing independently establishes that
+they are also the finished maximum extents.
 
 ## Shape and material
 
@@ -100,10 +136,30 @@ the nominal finished part before machining allowance.
   dimensionally established; application code can circumscribe the
   cross-section.
 - Read the material from an explicit title-block field, note, or callout.
-  Preserve the useful grade/condition in `material_name`. Do not invent a
-  default grade when the drawing omits material.
+  Preserve the exact useful grade/condition in `material_callout_raw` and cite
+  it in `material_callout_evidence`. Do not invent a default grade, temper, or
+  condition when the drawing omits it.
+- Keep `part_name` limited to the drawing title or an explicit part
+  description. Do not prepend a nearby material grade, specification, or stock
+  form to the part name.
+- Search the entire drawing for material requirements before returning a
+  missing material. Numbered general notes, process notes, and specification
+  blocks may contain the controlling material even when the title-block
+  material field is blank.
+- Transcribe the complete controlling material clause, including every allowed
+  alternative and its governing standard. Do not combine a material clause
+  with neighboring specification-list entries or silently select one allowed
+  grade from a multi-option requirement.
+- Treat punctuation, spacing, abbreviations, and equivalent ways of writing the
+  same grade or standard as wording variations, not different materials. The
+  application will normalize the customer-facing grade identity separately
+  from this evidence transcription.
+- Classify the shared material family represented by the complete clause. For
+  example, a clause allowing high-speed tool steel or A2 alloy tool steel is
+  `TOOL_STEEL`, while the raw callout must preserve both alternatives. This
+  classification is an internal machining-allowance input, not the material
+  name shown to the customer.
 
 Before returning, verify that every non-null dimension follows the evidence
 precedence, every chained value has a dimension path, and every unresolved
 conflict is explicit.
-

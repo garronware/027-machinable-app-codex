@@ -6,8 +6,11 @@
 __pycache__/
 *.py[cod]
 src/frontend/.expo/
+src/frontend/.next/
 src/frontend/node_modules/
+src/frontend/*.tsbuildinfo
 tests/evaluation/runs/
 
 # Private local evaluation drawings. Keep the authoritative index tracked.
 part-prints/*.pdf
+part-prints/redacted-eval/

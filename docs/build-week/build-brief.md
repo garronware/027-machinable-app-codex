@@ -91,24 +91,30 @@ field states and must never cause resolved fields to be discarded.
 The repository already contains useful working behavior:
 
 - a FastAPI `/analyze` route;
-- one GPT-5.6 Sol Responses API PDF call;
-- strict Pydantic structured output;
+- independent GPT-5.6 Sol High and Terra High Responses API PDF calls using the
+  same drawing prompt and output contract;
+- strict Pydantic structured output and field-level arbitration that preserves
+  each reader's candidates and evidence;
+- deterministic PDF text and page-region evidence checks;
 - fields for part identity, units, material, shape, dimensions, evidence,
   warnings, conflicts, and derivation paths;
 - validation that blocks missing, conflicting, or outline-only dimensions from
   reaching stock calculations;
+- HTTP-success partial results that preserve resolved fields;
+- conservative explicit-material resolution and separate drawing stock
+  callouts;
 - deterministic machining allowance;
 - deterministic flat and round stock lookup using local CSVs;
 - metric conversion;
 - cut length, standard drop length, saw kerf, end trim, and 12-foot bar yield;
-- an Expo PDF picker and result flow that may be used as behavioral reference;
+- a desktop Next.js split-view review UI with editable fields, per-reader
+  evidence, and deterministic correction-only recalculation;
 - offline tests;
 - an opt-in paid evaluation harness; and
 - a local drawing corpus.
 
 Do not restart the backend or rewrite working deterministic shop math merely to
-make the architecture look new. Do not invest further in Expo as the production
-frontend; it is now a behavioral reference while the desktop web UI is built.
+make the architecture look new.
 
 `part-prints/print-index.md` is the sole authoritative source of expected
 finished-part bounding dimensions for evaluation. It must never be used at
@@ -664,9 +670,9 @@ and send the required typed facts back for server-side validation and math.
 
 ## Desktop frontend direction
 
-The production frontend is a desktop-first Next.js/React web application. Expo
-and React Native are not long-term requirements. Existing Expo screens may be
-used only as behavioral references while the web application replaces them.
+The production frontend is the desktop-first Next.js/React web application.
+Expo and React Native are not production requirements and have been removed
+from the 027 frontend.
 
 Target deployment architecture:
 

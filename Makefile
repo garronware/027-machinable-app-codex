@@ -7,7 +7,7 @@ setup:
 dev:
 	@uv run uvicorn backend.main:app --reload & backend_pid=$$!; \
 	trap 'kill $$backend_pid 2>/dev/null || true' EXIT INT TERM; \
-	cd src/frontend && npm start
+	cd src/frontend && npm run dev
 
 test:
 	uv run pytest

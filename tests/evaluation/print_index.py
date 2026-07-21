@@ -114,17 +114,29 @@ def truth_cases(text: str) -> list[TruthCase]:
         primary_units = row.units_cell.split("+", 1)[0]
         if primary_units not in {"IN", "MM"}:
             continue
+        diameter = parse_dimension(row.diameter_cell)
+        thickness = parse_dimension(row.thickness_cell)
+        width = parse_dimension(row.width_cell)
+        length = parse_dimension(row.length_cell)
+        shape = SHAPE_MAP[row.shape_cell]
+        has_complete_dimensions = (
+            diameter is not None and length is not None
+            if shape is Shape.ROUND
+            else thickness is not None and width is not None and length is not None
+        )
+        if not has_complete_dimensions:
+            continue
         cases.append(
             TruthCase(
                 filename=row.filename,
                 part_number=row.part_number,
                 section=row.section,
-                shape=SHAPE_MAP[row.shape_cell],
+                shape=shape,
                 units=primary_units,
-                diameter=parse_dimension(row.diameter_cell),
-                thickness=parse_dimension(row.thickness_cell),
-                width=parse_dimension(row.width_cell),
-                length=parse_dimension(row.length_cell),
+                diameter=diameter,
+                thickness=thickness,
+                width=width,
+                length=length,
                 material=row.material,
                 notes=row.notes,
             )
@@ -265,4 +277,3 @@ def compare_interpretation(
             }
         )
     return report
-

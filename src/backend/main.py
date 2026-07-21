@@ -8,16 +8,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.routes.analysis import router as analysis_router
-from backend.clients.openai_vision import OpenAIVisionClient
+from backend.clients.openai_vision import OpenAIDualReaderClient
 from backend.core.config import settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.vision_client = (
-        OpenAIVisionClient(
+    app.state.drawing_reader = (
+        OpenAIDualReaderClient(
             api_key=settings.openai_api_key,
-            model=settings.openai_model,
+            sol_model=settings.openai_sol_model,
+            terra_model=settings.openai_terra_model,
             reasoning_effort=settings.openai_reasoning_effort,
         )
         if settings.openai_api_key
@@ -46,7 +47,6 @@ app.include_router(analysis_router)
 async def health() -> dict[str, str]:
     return {
         "status": "ok",
-        "model": settings.openai_model,
+        "models": f"{settings.openai_sol_model},{settings.openai_terra_model}",
         "input_scope": "digitally-generated-pdf",
     }
-

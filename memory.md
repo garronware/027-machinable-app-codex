@@ -3,6 +3,12 @@
 ## Authoritative direction
 
 - `docs/build-week/build-brief.md` is the single current build brief.
+- `docs/build-week/build-week-evidence.md` is the sole Build Week provenance,
+  dated evidence, compliance-status, and submission-blocker record.
+- `docs/build-week/submission-draft.md` is working Devpost and demo-video copy,
+  not proof that an external submission artifact exists.
+- `README.md` is the current judge-facing setup, testing, limitation, and Codex
+  collaboration guide.
 - The product is a desktop-first Next.js web application backed by FastAPI.
 - GPT-5.6 Sol High and Terra High independently read the same critical drawing
   fields using one shared structured contract.
@@ -18,25 +24,36 @@
   never used at runtime.
 - Werk24, Anthropic, and Claude must remain absent from the runtime.
 
-## Current implementation baseline
+## Current implementation
 
 - FastAPI accepts digitally generated PDFs.
-- One GPT-5.6 Sol call extracts a single drawing interpretation.
-- Missing or disputed required facts currently become a global 422 response.
+- GPT-5.6 Sol High and Terra High independently return the same strict drawing
+  contract and run concurrently.
+- PDF text tokens, page coordinates, numeric witnesses, and page/region
+  rendering are implemented with PyMuPDF.
+- Arbitration preserves both readers and resolves fields independently.
+- Missing or disputed facts return HTTP 200 partial success and block only
+  dependent calculations.
+- Common explicit material grades resolve deterministically into identity,
+  purchasing language, and allowance class. Proprietary numeric material codes
+  remain visible but unresolved without an authoritative mapping.
 - Deterministic machining and stock calculations are implemented.
-- The current Expo client is behavioral reference only; it is not the
-  production frontend direction.
-- Offline tests and targeted paid-evaluation tooling exist.
-
-These baseline facts are implementation gaps to migrate, not current product
-decisions.
+- Drawing-specified stock is preserved separately and checked against the
+  calculated minimum.
+- `/recalculate` accepts user-confirmed facts and reruns deterministic math
+  without rerunning either reader.
+- The production frontend is now a desktop-first Next.js split view with PDF
+  preview, field-level review, correction, recalculation, recommendation, and
+  expandable evidence. The Expo reference screens were removed.
+- Offline tests and targeted paid-evaluation tooling exist. Controlled paid
+  dual-reader evaluation has not run.
 
 ## Recent evidence
 
 - Targeted live runs showed direct part-number tabulated drawings working more
   reliably than AS4395 size-code drawings.
-- The current model can resolve material even when dimensions fail, but the
-  current API discards that useful partial result.
+- Backend tests now prove material and shape remain available when dimensions
+  disagree.
 - Saved local evaluation reports are under `tests/evaluation/runs/` and remain
   historical evidence.
 - The current index includes harvested updates from the legacy 015 index,
@@ -54,21 +71,19 @@ decisions.
 
 ## Next work
 
-1. Complete the Phase 1 read-only audit against the authoritative brief.
-2. Propose exact backend-contract, PDF-evidence, reader, arbitration, material,
-   and test changes before implementation.
-3. Implement backend field-level contracts before additional frontend work.
-4. Confirm the desktop split-screen structure and visual direction before
-   styling the Next.js UI.
-5. Request approval for the exact paid evaluation plan after offline checks.
+1. Request approval for an exact controlled paid evaluation plan.
+2. Run Sol High, Terra High, and field-agreement treatments against the same
+   versioned mix of straightforward and difficult prints.
+3. Report every field result, partial-result usefulness, latency, and cost.
+4. Harden and deploy only after the evaluated behavior is understood.
 
 ## Verification and known baseline issues
 
-- The last full baseline `make check` passed Python lint, Expo lint, strict
-  TypeScript, and 13 offline tests.
+- The repository has 25 deterministic offline backend tests passing, and the
+  Next.js production build, lint, and strict TypeScript checks pass.
 - Backend packaging and Uvicorn startup were verified.
 - Targeted paid calls have run, but the controlled dual-reader evaluation has
   not.
-- The Expo 54 dependency tree has 14 moderate audit findings. Expo is being
-  replaced rather than upgraded as the production UI.
-- This directory currently has no `.git` metadata.
+- The Next.js dependency tree currently reports two moderate npm audit findings;
+  no forced breaking upgrade has been applied.
+- This directory is an independent Git repository for project 027.

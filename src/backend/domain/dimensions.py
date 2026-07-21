@@ -36,6 +36,10 @@ def _require_dimension(name: str, dimension: DimensionEvidence) -> float:
         raise DrawingUncertainError(
             f"{name} was derived from chained dimensions but has no dimension path."
         )
+    if dimension.source is DimensionSource.CHAINED_DIMENSIONS and not dimension.chain_terms:
+        raise DrawingUncertainError(
+            f"{name} was derived from chained dimensions but has no structured operands."
+        )
     if dimension.uncertainty:
         raise DrawingUncertainError(f"{name} is uncertain: {dimension.uncertainty}.")
     return float(dimension.value)
@@ -84,8 +88,7 @@ def interpretation_to_bounding_data(
         raise DrawingUncertainError(interpretation.unsupported_reason)
     if interpretation.conflicts:
         raise DrawingUncertainError(
-            "Drawing conflicts require machinist review: "
-            + "; ".join(interpretation.conflicts)
+            "Drawing conflicts require machinist review: " + "; ".join(interpretation.conflicts)
         )
     if interpretation.shape is Shape.UNKNOWN:
         raise DrawingUncertainError("Stock shape is ambiguous or missing.")
@@ -93,17 +96,13 @@ def interpretation_to_bounding_data(
         raise DrawingUncertainError("Drawing primary units are ambiguous or missing.")
     if (
         interpretation.material_classification is MaterialClassification.NOT_FOUND
-        or not (interpretation.material_name or "").strip()
+        or not (interpretation.material_callout_raw or "").strip()
     ):
         raise DrawingUncertainError(
             "Material is missing or ambiguous; machining allowance cannot be selected."
         )
 
-    units = (
-        "IMPERIAL (IN)"
-        if interpretation.bounding.units is Units.IN
-        else "METRIC (MM)"
-    )
+    units = "IMPERIAL (IN)" if interpretation.bounding.units is Units.IN else "METRIC (MM)"
     warnings = list(interpretation.warnings)
 
     if interpretation.shape is Shape.ROUND:
@@ -125,9 +124,7 @@ def interpretation_to_bounding_data(
             )
         return data, warnings
 
-    thickness = _require_dimension(
-        "Overall thickness", interpretation.bounding.thickness
-    )
+    thickness = _require_dimension("Overall thickness", interpretation.bounding.thickness)
     width = _require_dimension("Overall width", interpretation.bounding.width)
     length = _require_dimension("Overall length", interpretation.bounding.length)
     return (
@@ -143,4 +140,3 @@ def interpretation_to_bounding_data(
         },
         warnings,
     )
-
