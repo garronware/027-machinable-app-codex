@@ -7,11 +7,16 @@ from backend.domain.models import (
     DrawingInterpretation,
     DrawingStockCallout,
     FieldStatus,
+    GeometryInterpretation,
+    GeometryReaderResult,
     MaterialClassification,
     PresentationStatus,
     ReaderBatch,
     ReaderResult,
     Shape,
+    SpecializedReaderBatch,
+    TitleBlockInterpretation,
+    TitleBlockReaderResult,
     Units,
 )
 from backend.domain.pipeline import build_analysis_response
@@ -80,8 +85,15 @@ def test_dimension_disagreement_preserves_material_and_shape():
     assert response.shape.status is FieldStatus.RESOLVED
     assert response.shape.value == "FLAT"
     assert response.dimensions.length.status is FieldStatus.NEEDS_REVIEW
-    assert response.recommendation is None
-    assert "standard stock size" in response.blocked_outputs
+    assert response.recommendation is not None
+    assert response.recommendation.stock_thickness is not None
+    assert response.recommendation.stock_width is not None
+    assert response.recommendation.cut_length is None
+    assert response.blocked_outputs == [
+        "cut length",
+        "drop length",
+        "12-foot bar yield",
+    ]
 
 
 def test_agreement_releases_deterministic_recommendation():
@@ -91,6 +103,97 @@ def test_agreement_releases_deterministic_recommendation():
     assert response.recommendation is not None
     assert response.recommendation.stock_shape == "Flat"
     assert response.blocked_outputs == []
+
+
+def test_specialized_read_releases_shape_driven_stock_without_dual_agreement():
+    batch = SpecializedReaderBatch(
+        title=TitleBlockReaderResult(
+            reader_model="gpt-5.6-terra",
+            interpretation=TitleBlockInterpretation(
+                material_callout_raw="6061-T6 Aluminum",
+                material_callout_evidence=["Title block MATERIAL field"],
+                material_name="6061-T6 Aluminum",
+                material_classification=MaterialClassification.ALUMINUM,
+                warnings=[],
+            ),
+        ),
+        geometry=GeometryReaderResult(
+            reader_model="gpt-5.6-sol",
+            interpretation=GeometryInterpretation(
+                shape=Shape.FLAT,
+                bounding=BoundingDimensions(
+                    units=Units.IN,
+                    diameter=_dimension(None),
+                    thickness=_dimension(0.5),
+                    width=_dimension(1.5),
+                    length=_dimension(None),
+                ),
+                drawing_stock_callout=None,
+                projection="THIRD_ANGLE",
+                identified_views=["FRONT", "TOP", "RIGHT_SIDE"],
+                warnings=[],
+                conflicts=[],
+                unsupported_reason=None,
+            ),
+        ),
+        failures=[],
+    )
+
+    response = build_analysis_response(batch)
+
+    assert response.part_number.status is FieldStatus.MISSING
+    assert response.part_name.status is FieldStatus.MISSING
+    assert response.material.resolved_identity == "6061-T6 Aluminum"
+    assert response.shape.value == "FLAT"
+    assert response.recommendation is not None
+    assert response.recommendation.dominant_machining_process == "MILL"
+    assert response.recommendation.stock_thickness is not None
+    assert response.recommendation.stock_width is not None
+    assert response.recommendation.cut_length is None
+
+
+def test_equivalent_dual_unit_note_is_not_user_facing():
+    batch = SpecializedReaderBatch(
+        title=TitleBlockReaderResult(
+            reader_model="gpt-5.6-terra",
+            interpretation=TitleBlockInterpretation(
+                material_callout_raw="6061-T6 Aluminum",
+                material_callout_evidence=["Title block MATERIAL field"],
+                material_name="6061-T6 Aluminum",
+                material_classification=MaterialClassification.ALUMINUM,
+                warnings=[],
+            ),
+        ),
+        geometry=GeometryReaderResult(
+            reader_model="gpt-5.6-sol",
+            interpretation=GeometryInterpretation(
+                shape=Shape.FLAT,
+                bounding=BoundingDimensions(
+                    units=Units.MM,
+                    diameter=_dimension(None),
+                    thickness=_dimension(12.7),
+                    width=_dimension(184.2),
+                    length=_dimension(215.9),
+                ),
+                drawing_stock_callout=None,
+                projection="THIRD_ANGLE",
+                identified_views=["FRONT", "EDGE"],
+                warnings=[
+                    "The dimensions are dual-unit with unbracketed metric values "
+                    "and bracketed inch equivalents; unbracketed metric values were "
+                    "treated as primary."
+                ],
+                conflicts=[],
+                unsupported_reason=None,
+            ),
+        ),
+        failures=[],
+    )
+
+    response = build_analysis_response(batch)
+
+    assert response.warnings == []
+    assert all(summary.warnings == [] for summary in response.reader_summaries)
 
 
 def test_material_identity_normalizes_across_equivalent_callout_wording():
@@ -107,8 +210,7 @@ def test_material_identity_normalizes_across_equivalent_callout_wording():
     terra = _read().model_copy(
         update={
             "material_callout_raw": (
-                "Tool steel: T1 through T15 or M1 through M62; alternatively "
-                "A2 to ASTM-A-681"
+                "Tool steel: T1 through T15 or M1 through M62; alternatively A2 to ASTM-A-681"
             ),
             "material_callout_evidence": ["Upper-left material note 2"],
             "material_classification": MaterialClassification.TOOL_STEEL,
@@ -156,9 +258,7 @@ def test_undersized_drawing_stock_callout_is_displayed_and_flagged():
         length=None,
         evidence="Sol: stock note",
     )
-    terra_callout = sol_callout.model_copy(
-        update={"evidence": "Terra: upper-left stock note"}
-    )
+    terra_callout = sol_callout.model_copy(update={"evidence": "Terra: upper-left stock note"})
 
     response = build_analysis_response(
         _batch(

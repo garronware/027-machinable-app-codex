@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from backend.domain.models import DrawingInterpretation, Shape
+from backend.domain.models import DrawingInterpretation, GeometryInterpretation, Shape
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PART_PRINTS_DIR = REPO_ROOT / "part-prints"
@@ -200,7 +200,8 @@ def _effective_extracted_diameter(
 
 
 def compare_interpretation(
-    case: TruthCase, interpretation: DrawingInterpretation
+    case: TruthCase,
+    interpretation: DrawingInterpretation | GeometryInterpretation,
 ) -> dict:
     """Report live extraction/index differences without normalizing either."""
 

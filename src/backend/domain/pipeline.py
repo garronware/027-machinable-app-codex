@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from backend.domain.arbitration import MACHINIST_VERIFICATION, arbitrate_reader_batch
+from backend.domain.arbitration import (
+    MACHINIST_VERIFICATION,
+    arbitrate_reader_batch,
+    response_from_specialized_read,
+)
 from backend.domain.dimensions import interpretation_to_bounding_data
 from backend.domain.machining import add_machining_allowance
 from backend.domain.materials import resolve_material
@@ -20,6 +24,7 @@ from backend.domain.models import (
     RecalculationRequest,
     RecalculationResponse,
     Shape,
+    SpecializedReaderBatch,
     StockRecommendation,
     Units,
 )
@@ -97,13 +102,11 @@ def _required_dimension_results(response: AnalysisResponse) -> list[DimensionFie
             return [
                 response.dimensions.thickness,
                 response.dimensions.width,
-                response.dimensions.length,
             ]
-        return [response.dimensions.diameter, response.dimensions.length]
+        return [response.dimensions.diameter]
     return [
         response.dimensions.thickness,
         response.dimensions.width,
-        response.dimensions.length,
     ]
 
 
@@ -167,9 +170,9 @@ def clean_recommendation(raw: dict) -> StockRecommendation:
         stock_thickness=material.get("Stock_Thk"),
         stock_width=material.get("Stock_W"),
         stock_diameter=material.get("Stock_Dia"),
-        cut_length=material["Cut_L"],
-        closest_drop_length=material["Closest_Drop_L"],
-        bar_yield=material["12-Ft_Bar_Yields"],
+        cut_length=material.get("Cut_L"),
+        closest_drop_length=material.get("Closest_Drop_L"),
+        bar_yield=material.get("12-Ft_Bar_Yields"),
         dominant_machining_process=basics["Dominant_Machining_Process"],
         finished_dimensions=basics["Naked_Bounding_Dims"],
         adjusted_dimensions=basics["Naked_Dims_Plus_Machining_Alwnc"],
@@ -226,12 +229,16 @@ def _validate_drawing_stock_containment(response: AnalysisResponse) -> bool:
 
 
 def build_analysis_response(
-    batch: ReaderBatch, pdf_evidence: PdfEvidence | None = None
+    batch: ReaderBatch | SpecializedReaderBatch,
+    pdf_evidence: PdfEvidence | None = None,
 ) -> AnalysisResponse:
-    """Return useful agreed fields even when downstream calculations are blocked."""
+    """Return every determinable shop output without optional-field gating."""
 
-    response = arbitrate_reader_batch(batch)
-    response.material = resolve_material(response.material, response.shape)
+    if isinstance(batch, SpecializedReaderBatch):
+        response = response_from_specialized_read(batch)
+    else:
+        response = arbitrate_reader_batch(batch)
+        response.material = resolve_material(response.material, response.shape)
     if pdf_evidence is not None:
         validate_response_against_pdf(response, pdf_evidence)
     if response.presentation_status is PresentationStatus.UNSUPPORTED:
@@ -256,12 +263,15 @@ def build_analysis_response(
 
     response.recommendation = clean_recommendation(raw)
     stock_callout_safe = _validate_drawing_stock_containment(response)
+    has_cut_outputs = response.recommendation.cut_length is not None
     response.presentation_status = (
         PresentationStatus.COMPLETE
-        if stock_callout_safe
+        if stock_callout_safe and has_cut_outputs
         else PresentationStatus.PARTIAL_SUCCESS
     )
-    response.blocked_outputs = []
+    response.blocked_outputs = (
+        [] if has_cut_outputs else ["cut length", "drop length", "12-foot bar yield"]
+    )
     return response
 
 

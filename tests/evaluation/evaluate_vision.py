@@ -11,13 +11,18 @@ from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
-from backend.clients.openai_vision import OpenAIDualReaderClient
+from backend.clients.openai_vision import OpenAISpecializedReaderClient
 from backend.core.config import settings
-from backend.domain.models import Shape
+from backend.domain.models import (
+    Shape,
+    SpecializedReaderBatch,
+    TitleBlockInterpretation,
+)
 from backend.domain.pdf_evidence import extract_pdf_evidence
 from backend.domain.pipeline import build_analysis_response
 from tests.evaluation.print_index import (
     PART_PRINTS_DIR,
+    TruthCase,
     compare_interpretation,
     load_truth_cases,
 )
@@ -42,7 +47,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--limit",
         type=int,
         default=3,
-        help="Maximum paid calls (default: 3). Ignored with --all.",
+        help=(
+            "Maximum parts (default: 3; two paid calls per part plus conditional "
+            "dimension recovery). Ignored with --all."
+        ),
     )
     parser.add_argument(
         "--all",
@@ -64,6 +72,76 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     return parser
+
+
+def compare_title_block(
+    case: TruthCase,
+    interpretation: TitleBlockInterpretation,
+) -> dict:
+    """Record Terra's focused material result without inventing material truth."""
+
+    return {
+        "expected_material": case.material,
+        "actual_material_callout_raw": interpretation.material_callout_raw,
+        "actual_material_name": interpretation.material_name,
+        "actual_material_classification": interpretation.material_classification.value,
+        "material_callout_evidence": interpretation.material_callout_evidence,
+        "warnings": interpretation.warnings,
+    }
+
+
+def build_reader_reports(
+    case: TruthCase,
+    batch: SpecializedReaderBatch,
+    *,
+    title_model: str,
+    geometry_model: str,
+) -> list[dict]:
+    """Keep the two specialized duties distinct in one historical report."""
+
+    reports: list[dict] = []
+    if batch.title is not None:
+        reports.append(
+            {
+                "task": "TITLE_MATERIAL",
+                "model": batch.title.reader_model,
+                "error": None,
+                "interpretation": batch.title.interpretation.model_dump(mode="json"),
+                "comparison": compare_title_block(case, batch.title.interpretation),
+            }
+        )
+    if batch.geometry is not None:
+        reports.append(
+            {
+                "task": "SHAPE_GEOMETRY",
+                "model": batch.geometry.reader_model,
+                "error": None,
+                "recovered_axes": [axis.value for axis in batch.geometry.recovered_axes],
+                "interpretation": batch.geometry.interpretation.model_dump(mode="json"),
+                "comparison": compare_interpretation(
+                    case,
+                    batch.geometry.interpretation,
+                ),
+            }
+        )
+    for failure in batch.failures:
+        task = (
+            "TITLE_MATERIAL"
+            if failure.reader_model == title_model
+            else "SHAPE_GEOMETRY"
+            if failure.reader_model == geometry_model
+            else "UNKNOWN"
+        )
+        reports.append(
+            {
+                "task": task,
+                "model": failure.reader_model,
+                "error": failure.error,
+                "interpretation": None,
+                "comparison": None,
+            }
+        )
+    return reports
 
 
 async def run(args: argparse.Namespace) -> int:
@@ -96,46 +174,37 @@ async def run(args: argparse.Namespace) -> int:
         cases = [
             case
             for case in cases
-            if needle in case.filename.lower()
-            or needle in case.part_number.lower()
+            if needle in case.filename.lower() or needle in case.part_number.lower()
         ]
     if not args.all and not args.case:
         cases = cases[: max(args.limit, 0)]
 
-    client = OpenAIDualReaderClient(
+    client = OpenAISpecializedReaderClient(
         api_key=settings.openai_api_key,
         sol_model=settings.openai_sol_model,
         terra_model=settings.openai_terra_model,
         reasoning_effort=settings.openai_reasoning_effort,
     )
     reports: list[dict] = []
+    paid_model_calls_attempted = 0
     for case in cases:
         path = args.prints_dir / case.filename
         print(f"evaluate {case.filename}")
         try:
             pdf_bytes = path.read_bytes()
+            paid_model_calls_attempted += 2
             batch = await client.interpret_pdf(pdf_bytes, case.filename)
+            paid_model_calls_attempted += max(batch.model_calls_attempted - 2, 0)
             analysis = build_analysis_response(
                 batch,
                 extract_pdf_evidence(pdf_bytes),
             )
-            reader_reports = [
-                {
-                    "model": read.reader_model,
-                    "error": None,
-                    "interpretation": read.interpretation.model_dump(mode="json"),
-                    "comparison": compare_interpretation(case, read.interpretation),
-                }
-                for read in batch.reads
-            ] + [
-                {
-                    "model": failure.reader_model,
-                    "error": failure.error,
-                    "interpretation": None,
-                    "comparison": None,
-                }
-                for failure in batch.failures
-            ]
+            reader_reports = build_reader_reports(
+                case,
+                batch,
+                title_model=client.title_reader.model,
+                geometry_model=client.geometry_reader.model,
+            )
             reports.append(
                 {
                     "file": case.filename,
@@ -162,6 +231,7 @@ async def run(args: argparse.Namespace) -> int:
     buckets: dict[str, Counter[str]] = defaultdict(Counter)
     shape_results: dict[str, Counter[str]] = defaultdict(Counter)
     presentations: Counter[str] = Counter()
+    material_statuses: Counter[str] = Counter()
     dimension_statuses: Counter[str] = Counter()
     recommendations = 0
     reader_errors = 0
@@ -172,9 +242,12 @@ async def run(args: argparse.Namespace) -> int:
         for reader in report["readers"]:
             if reader["error"]:
                 reader_errors += 1
-                print(f"  {reader['model']}: ERROR {reader['error']}")
+                print(f"  {reader['model']} {reader['task']}: ERROR {reader['error']}")
                 continue
             comparison = reader["comparison"]
+            if reader["task"] == "TITLE_MATERIAL":
+                print(f"  {reader['model']} material: {comparison['actual_material_name']!r}")
+                continue
             shape_results[reader["model"]][
                 "MATCH" if comparison["shape_match"] else "MISMATCH"
             ] += 1
@@ -196,6 +269,7 @@ async def run(args: argparse.Namespace) -> int:
 
         analysis = report["analysis"]
         presentations[analysis["presentation_status"]] += 1
+        material_statuses[analysis["material"]["status"]] += 1
         recommendations += int(analysis["recommendation"] is not None)
         required_axes = (
             ("diameter", "length")
@@ -214,16 +288,34 @@ async def run(args: argparse.Namespace) -> int:
         "historical_report": True,
         "generated_at": datetime.now(UTC).isoformat(),
         "models": [settings.openai_sol_model, settings.openai_terra_model],
+        "model_roles": {
+            "material": settings.openai_terra_model,
+            "shape_geometry": settings.openai_sol_model,
+            "conditional_dimension_recovery": settings.openai_sol_model,
+        },
         "reasoning_effort": settings.openai_reasoning_effort,
-        "prompt_sha256": hashlib.sha256(
-            client.readers[0].prompt.encode("utf-8")
-        ).hexdigest(),
+        "prompt_sha256": {
+            "material": hashlib.sha256(client.title_reader.prompt.encode("utf-8")).hexdigest(),
+            "shape_geometry": hashlib.sha256(
+                client.geometry_reader.prompt.encode("utf-8")
+            ).hexdigest(),
+            "dimension_recovery": hashlib.sha256(
+                client.recovery_reader.prompt.encode("utf-8")
+            ).hexdigest(),
+        },
+        "task_prompt_sha256": {
+            "material": hashlib.sha256(client.title_reader.task.encode("utf-8")).hexdigest(),
+            "shape_geometry": hashlib.sha256(
+                client.geometry_reader.task.encode("utf-8")
+            ).hexdigest(),
+        },
         "truth_source": "part-prints/print-index.md (read live for this run)",
         "input_directory": str(args.prints_dir),
         "summary": {
             "parts": len(reports),
             "errors": sum(1 for report in reports if report["error"]),
             "reader_errors": reader_errors,
+            "paid_model_calls_attempted": paid_model_calls_attempted,
             "dimension_buckets_by_model": {
                 model: dict(counts) for model, counts in buckets.items()
             },
@@ -231,6 +323,7 @@ async def run(args: argparse.Namespace) -> int:
                 model: dict(counts) for model, counts in shape_results.items()
             },
             "combined_dimension_statuses": dict(dimension_statuses),
+            "combined_material_statuses": dict(material_statuses),
             "presentation_statuses": dict(presentations),
             "recommendations": recommendations,
         },
@@ -239,9 +332,7 @@ async def run(args: argparse.Namespace) -> int:
     print(json.dumps(payload["summary"], indent=2))
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(
-            json.dumps(payload, indent=2) + "\n", encoding="utf-8"
-        )
+        args.output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         print(f"wrote {args.output}")
     return 0 if not payload["summary"]["errors"] else 1
 

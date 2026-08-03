@@ -14,8 +14,8 @@ porting; do not assume its structure or behavior is correct.
 
 Work in this order:
 
-1. Run controlled evaluations of Sol, Terra, and their field agreement against
-   the same approved cases.
+1. Run controlled evaluations of focused Sol geometry, Terra material, and
+   conditional Sol dimension recovery against the same approved cases.
 2. Extend material-code resolution only with authoritative mappings.
 3. Harden and deploy only after evaluation, before adding optional audit calls or live
    supplier integrations.
@@ -25,18 +25,23 @@ the app is production-ready without evidence supporting that claim.
 
 ## Current State
 
-The backend now runs independent GPT-5.6 Sol High and Terra High reads with one
-shared contract, extracts deterministic PDF text evidence, arbitrates fields
-independently, returns partial success without a global 422, resolves common
-explicit materials conservatively, reconnects deterministic shop math, and
-supports correction-only recalculation without model calls. Offline tests cover
-these paths.
+The backend now uses GPT-5.6 Sol High for stock shape and applicable bounding
+dimensions and Terra High for material only. Part identity is deliberately
+non-gating and is not requested from either model. When Sol leaves a
+stock-blocking cross-section dimension unresolved, one conditional Sol call
+receives deterministic high-resolution PDF crops focused around the candidate
+callouts. Deterministic PDF evidence, shop math, stock selection, and
+correction-only recalculation remain outside the models.
 
 The Expo reference application has been replaced by the approved desktop
 Next.js split-view UI. It displays complete and partial results together,
 supports corrections and deterministic recalculation, and uses the contemporary
-B2B visual direction. The new dual-reader path has not yet received controlled
-paid evaluation and the application has not been deployed.
+B2B visual direction. A controlled 10-print specialized-reader evaluation ran
+on 2026-07-26; its report is
+`tests/evaluation/runs/specialized-10-print-2026-07-26.json`. The focused prompt
+and conditional recovery changes made afterward have not yet received paid
+evaluation. The application has been deployed, but no production-readiness
+claim is supported.
 
 Before creating a file or directory, show the user its proposed path, purpose,
 and reason. Approval may cover one coherent batch.
@@ -45,8 +50,9 @@ and reason. Approval may cover one coherent batch.
 
 - Frontend: desktop-first Next.js/React with strict TypeScript.
 - Backend: FastAPI with typed Python and Pydantic data contracts.
-- Models: server-side independent GPT-5.6 Sol High and Terra High readers using
-  one shared core contract.
+- Models: server-side GPT-5.6 Sol High for stock geometry, Terra High for
+  material, and a conditional focused Sol recovery call only when a required
+  stock cross-section dimension remains missing.
 - Database: Supabase PostgreSQL for optional analysis history.
 - Dependencies: `uv` for Python and npm for the frontend.
 - Deployment target: Next.js on Vercel and the existing FastAPI backend on
@@ -84,9 +90,10 @@ the default test or check commands.
 
 - `part-prints/print-index.md` is the only authoritative source of expected
   bounding dimensions for the local evaluation corpus.
-- The current model invocation rule set is
-  `src/backend/prompts/drawing_interpretation.md`. It is the shared authoritative
-  core used by Sol and Terra; do not create competing prompt copies.
+- Current model invocation rules are deliberately separated by duty:
+  `src/backend/prompts/shape_geometry.md`,
+  `src/backend/prompts/title_material.md`, and
+  `src/backend/prompts/dimension_recovery.md`.
 - Assume third-angle projection unless the drawing states otherwise, reconcile
   all relevant views, prefer explicit dimensions and text, and use maximum
   external finished-part extents.
@@ -116,13 +123,13 @@ the default test or check commands.
 
 ## Core Architecture Boundaries
 
-- Use Sol and Terra to independently extract the same critical drawing facts
-  into one shared validated contract.
-- Preserve each reader's result, PDF text evidence, and field-level arbitration
-  evidence.
-- Resolve part identity, units, material, shape, dimensions, and explicit stock
-  callouts independently. Never discard resolved fields because another field
-  failed.
+- Use Sol to extract stock shape and applicable bounding dimensions and Terra
+  to extract material. Do not spend model effort resolving part name or part
+  number.
+- Preserve model results, PDF text evidence, focused-recovery provenance, and
+  evaluation evidence.
+- Resolve units, material, shape, dimensions, and explicit stock callouts
+  independently. Never discard resolved fields because another field failed.
 - Block only downstream outputs whose required inputs remain unresolved.
 - Use deterministic Python for arithmetic, unit conversion, machining
   allowance, geometry, and stock-size selection.
@@ -150,8 +157,8 @@ the default test or check commands.
 - Compare model changes against the same versioned evaluation cases.
 - Treat undersized stock as the highest-risk dimensional error.
 - Never turn missing or disputed inputs into dependent calculated outputs.
-- Test useful partial results: dimensions may need review while material,
-  shape, identity, units, and explicit drawing stock callouts remain visible.
+- Test useful incomplete results: dimensions may remain unresolved while
+  material, shape, units, and explicit drawing stock callouts remain visible.
 - Require machinist verification against the original drawing before material
   is ordered or cut.
 - Do not copy or publish legacy drawings until the user confirms they are safe
@@ -168,8 +175,8 @@ the default test or check commands.
 
 ## Build Week
 
-- Keep symmetric GPT-5.6 Sol High and Terra High reading central to the
-  submitted workflow.
+- Keep the specialized GPT-5.6 Sol High geometry and Terra High material roles
+  central to the submitted workflow.
 - Treat Machinable as a meaningfully extended pre-existing project; never imply
   that the entire application was created during Build Week.
 - `docs/build-week/build-week-evidence.md` is the sole provenance and

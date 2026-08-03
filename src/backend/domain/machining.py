@@ -55,10 +55,11 @@ def add_machining_allowance(data: dict, material_classification: str) -> dict:
         if is_metric:
             allowance *= INCH_TO_MM
         cube = data["Bounding_Cube"]
+        length = cube.get("L")
         result["Bndng_Plus_Mach_Stock"] = {
             "Thk": cube["Thk"] + (2 * allowance),
             "W": cube["W"] + (2 * allowance),
-            "L": cube["L"] + (2 * allowance),
+            "L": length + (2 * allowance) if isinstance(length, (int, float)) else None,
             "Units": units,
             "Shape": "CUBE",
             "Lookup_Tbl": classification,
@@ -79,9 +80,10 @@ def add_machining_allowance(data: dict, material_classification: str) -> dict:
             allowance *= INCH_TO_MM
             face_allowance *= INCH_TO_MM
         cylinder = data["Bounding_Cyl"]
+        length = cylinder.get("L")
         result["Bndng_Plus_Mach_Stock"] = {
             "Dia": cylinder["Dia"] + (2 * allowance),
-            "L": cylinder["L"] + face_allowance,
+            "L": length + face_allowance if isinstance(length, (int, float)) else None,
             "Units": units,
             "Shape": "CYLINDER",
             "Lookup_Tbl": classification,
@@ -92,4 +94,3 @@ def add_machining_allowance(data: dict, material_classification: str) -> dict:
         return result
 
     raise ValueError("No validated bounding volume is available.")
-

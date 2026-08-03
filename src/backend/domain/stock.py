@@ -83,10 +83,13 @@ def lookup_stock_size(data: dict, material_name: str) -> dict:
 def _lookup_flat(
     data: dict, stock: dict, is_metric: bool, material_name: str
 ) -> dict:
-    _require_positive_dims({key: stock.get(key) for key in ("Thk", "W", "L")})
+    _require_positive_dims({key: stock.get(key) for key in ("Thk", "W")})
     required_thickness = stock["Thk"] / INCH_TO_MM if is_metric else stock["Thk"]
     required_width = stock["W"] / INCH_TO_MM if is_metric else stock["W"]
-    required_length = stock["L"] / INCH_TO_MM if is_metric else stock["L"]
+    stock_length = stock.get("L")
+    required_length = (
+        stock_length / INCH_TO_MM if is_metric else stock_length
+    ) if isinstance(stock_length, (int, float)) and stock_length > 0 else None
 
     candidates = [
         row
@@ -117,11 +120,19 @@ def _lookup_flat(
             "Stock_W": _format_stock_dimension(
                 selected["w_frac"], selected["w_dec"], is_metric
             ),
-            "Cut_L": _format_cut_length(
-                required_length, stock["L"], is_metric
+            "Cut_L": (
+                _format_cut_length(required_length, stock_length, is_metric)
+                if required_length is not None
+                else None
             ),
-            "Closest_Drop_L": _format_drop_length(required_length),
-            "12-Ft_Bar_Yields": _bar_yield(required_length),
+            "Closest_Drop_L": (
+                _format_drop_length(required_length)
+                if required_length is not None
+                else None
+            ),
+            "12-Ft_Bar_Yields": (
+                _bar_yield(required_length) if required_length is not None else None
+            ),
             "Prod_Descr": re.sub(r"\s+", " ", description).strip(),
         },
     )
@@ -130,9 +141,12 @@ def _lookup_flat(
 def _lookup_round(
     data: dict, stock: dict, is_metric: bool, material_name: str
 ) -> dict:
-    _require_positive_dims({key: stock.get(key) for key in ("Dia", "L")})
+    _require_positive_dims({"Dia": stock.get("Dia")})
     required_diameter = stock["Dia"] / INCH_TO_MM if is_metric else stock["Dia"]
-    required_length = stock["L"] / INCH_TO_MM if is_metric else stock["L"]
+    stock_length = stock.get("L")
+    required_length = (
+        stock_length / INCH_TO_MM if is_metric else stock_length
+    ) if isinstance(stock_length, (int, float)) and stock_length > 0 else None
 
     candidates = [
         row
@@ -158,11 +172,19 @@ def _lookup_round(
             "Stock_Dia": _format_stock_dimension(
                 selected["d_frac"], selected["d_dec"], is_metric
             ),
-            "Cut_L": _format_cut_length(
-                required_length, stock["L"], is_metric
+            "Cut_L": (
+                _format_cut_length(required_length, stock_length, is_metric)
+                if required_length is not None
+                else None
             ),
-            "Closest_Drop_L": _format_drop_length(required_length),
-            "12-Ft_Bar_Yields": _bar_yield(required_length),
+            "Closest_Drop_L": (
+                _format_drop_length(required_length)
+                if required_length is not None
+                else None
+            ),
+            "12-Ft_Bar_Yields": (
+                _bar_yield(required_length) if required_length is not None else None
+            ),
             "Prod_Descr": re.sub(r"\s+", " ", description).strip(),
         },
     )
@@ -220,4 +242,3 @@ def _format_drop_length(required_length_in: float) -> str:
         (option for option in DROP_OPTIONS_FT if option >= required_feet), 12
     )
     return "1/2 ft" if selected == 0.5 else f"{selected} ft"
-

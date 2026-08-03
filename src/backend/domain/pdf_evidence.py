@@ -64,6 +64,15 @@ class PdfEvidence:
         return tuple(token for page in self.pages for token in page.tokens)
 
 
+@dataclass(frozen=True)
+class PdfRegionCrop:
+    """One rendered page region supplied to a focused visual recovery pass."""
+
+    page_number: int
+    region: tuple[float, float, float, float] | None
+    png_bytes: bytes
+
+
 def normalize_text(value: str) -> str:
     """Normalize for comparison without replacing the preserved raw token."""
 
@@ -121,15 +130,11 @@ def find_text(evidence: PdfEvidence, query: str) -> list[int]:
     if not compact_query:
         return []
     return [
-        page.page_number
-        for page in evidence.pages
-        if compact_query in _compact_text(page.text)
+        page.page_number for page in evidence.pages if compact_query in _compact_text(page.text)
     ]
 
 
-def _material_identity_is_supported(
-    response: AnalysisResponse, evidence: PdfEvidence
-) -> bool:
+def _material_identity_is_supported(response: AnalysisResponse, evidence: PdfEvidence) -> bool:
     """Accept equivalent wording while requiring the resolved grade facts."""
 
     material = response.material
@@ -203,6 +208,132 @@ def render_pdf_region(
         document.close()
 
 
+def _recovery_context_score(tokens: tuple[PdfToken, ...], index: int) -> int:
+    start = max(index - 8, 0)
+    stop = min(index + 9, len(tokens))
+    context = " ".join(token.normalized_text for token in tokens[start:stop])
+    score = 0
+    for marker in ("THRU", "OVERALL", "OAL", "THK", "THICK"):
+        if marker in context:
+            score += 3
+    for marker in (" DP", "DEPTH", "DIA", "Ø"):
+        if marker in context:
+            score -= 2
+    return score
+
+
+def _expanded_region(
+    token: PdfToken,
+    *,
+    page_width: float,
+    page_height: float,
+) -> tuple[float, float, float, float]:
+    center_x = (token.x0 + token.x1) / 2
+    center_y = (token.y0 + token.y1) / 2
+    width = page_width * 0.55
+    height = page_height * 0.28
+    x0 = max(0.0, min(center_x - width / 2, page_width - width))
+    y0 = max(0.0, min(center_y - height / 2, page_height - height))
+    return (x0, y0, x0 + width, y0 + height)
+
+
+def _regions_overlap(
+    left: tuple[float, float, float, float],
+    right: tuple[float, float, float, float],
+) -> bool:
+    intersection_width = max(0.0, min(left[2], right[2]) - max(left[0], right[0]))
+    intersection_height = max(0.0, min(left[3], right[3]) - max(left[1], right[1]))
+    intersection = intersection_width * intersection_height
+    if intersection == 0:
+        return False
+    left_area = (left[2] - left[0]) * (left[3] - left[1])
+    right_area = (right[2] - right[0]) * (right[3] - right[1])
+    return intersection / min(left_area, right_area) >= 0.45
+
+
+def render_dimension_recovery_crops(
+    pdf_bytes: bytes,
+    anchor_texts: list[str],
+    *,
+    max_crops: int = 4,
+    dpi: int = 300,
+) -> list[PdfRegionCrop]:
+    """Render likely dimension regions, falling back to at most two full pages."""
+
+    if max_crops < 1:
+        return []
+    evidence = extract_pdf_evidence(pdf_bytes)
+    anchor_values: list[float] = []
+    for text in anchor_texts:
+        for value in numeric_values(text):
+            if not any(
+                math.isclose(value, existing, rel_tol=1e-7, abs_tol=1e-7)
+                for existing in anchor_values
+            ):
+                anchor_values.append(value)
+
+    candidates: list[tuple[int, int, int, tuple[float, float, float, float]]] = []
+    for page in evidence.pages:
+        for index, token in enumerate(page.tokens):
+            token_values = numeric_values(token.raw_text)
+            for anchor_index, anchor in enumerate(anchor_values):
+                if any(
+                    math.isclose(value, anchor, rel_tol=1e-7, abs_tol=1e-7)
+                    for value in token_values
+                ):
+                    candidates.append(
+                        (
+                            _recovery_context_score(page.tokens, index),
+                            -anchor_index,
+                            page.page_number,
+                            _expanded_region(
+                                token,
+                                page_width=page.width,
+                                page_height=page.height,
+                            ),
+                        )
+                    )
+
+    selected: list[tuple[int, tuple[float, float, float, float]]] = []
+    for _, _, page_number, region in sorted(candidates, reverse=True):
+        if any(
+            page_number == selected_page and _regions_overlap(region, selected_region)
+            for selected_page, selected_region in selected
+        ):
+            continue
+        selected.append((page_number, region))
+        if len(selected) == max_crops:
+            break
+
+    if selected:
+        return [
+            PdfRegionCrop(
+                page_number=page_number,
+                region=region,
+                png_bytes=render_pdf_region(
+                    pdf_bytes,
+                    page_number - 1,
+                    region=region,
+                    dpi=dpi,
+                ),
+            )
+            for page_number, region in selected
+        ]
+
+    return [
+        PdfRegionCrop(
+            page_number=page.page_number,
+            region=None,
+            png_bytes=render_pdf_page(
+                pdf_bytes,
+                page.page_number - 1,
+                dpi=220,
+            ),
+        )
+        for page in evidence.pages[:2]
+    ]
+
+
 def _candidate_values(candidate: DimensionCandidate) -> list[float]:
     if candidate.source is DimensionSource.CHAINED_DIMENSIONS:
         return [term.value for term in candidate.chain_terms]
@@ -256,9 +387,7 @@ def _explicit_primary_units(evidence: PdfEvidence) -> Units | None:
     return next(iter(found)) if len(found) == 1 else None
 
 
-def _apply_explicit_primary_units(
-    response: AnalysisResponse, evidence: PdfEvidence
-) -> None:
+def _apply_explicit_primary_units(response: AnalysisResponse, evidence: PdfEvidence) -> None:
     primary_units = _explicit_primary_units(evidence)
     if primary_units is None:
         return
@@ -303,14 +432,11 @@ def _apply_explicit_primary_units(
     )
 
 
-def validate_response_against_pdf(
-    response: AnalysisResponse, evidence: PdfEvidence
-) -> None:
+def validate_response_against_pdf(response: AnalysisResponse, evidence: PdfEvidence) -> None:
     """Downgrade unsupported claims; never replace them with expected values."""
 
     response.validation_summary.append(
-        f"Digital PDF witness: {evidence.page_count} page(s), "
-        f"{len(evidence.tokens)} text token(s)."
+        f"Digital PDF witness: {evidence.page_count} page(s), {len(evidence.tokens)} text token(s)."
     )
     if not evidence.tokens or not evidence.text.strip():
         response.validation_summary.append(

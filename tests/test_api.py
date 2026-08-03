@@ -181,7 +181,8 @@ async def test_dimension_uncertainty_returns_partial_success_not_422():
     assert payload["material"]["raw_callout"] == "A2 Tool Steel"
     assert payload["shape"]["value"] == "ROUND"
     assert payload["dimensions"]["length"]["status"] == "NEEDS_REVIEW"
-    assert payload["recommendation"] is None
+    assert payload["recommendation"]["stock_diameter"] is not None
+    assert payload["recommendation"]["cut_length"] is None
 
 
 @pytest.mark.asyncio

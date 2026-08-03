@@ -18,6 +18,7 @@ from backend.domain.pdf_evidence import (
     contains_numeric,
     extract_pdf_evidence,
     find_text,
+    render_dimension_recovery_crops,
     render_pdf_page,
 )
 from backend.domain.pipeline import build_analysis_response
@@ -36,9 +37,7 @@ def _dimension(value: float | None) -> DimensionEvidence:
     return DimensionEvidence(
         value=value,
         source=(
-            DimensionSource.EXPLICIT_OVERALL
-            if value is not None
-            else DimensionSource.NOT_FOUND
+            DimensionSource.EXPLICIT_OVERALL if value is not None else DimensionSource.NOT_FOUND
         ),
         dimension_path=None,
         evidence="Explicit overall dimension" if value is not None else None,
@@ -89,10 +88,29 @@ def test_extracts_raw_tokens_coordinates_numbers_and_render():
     assert render_pdf_page(pdf_bytes, 0, dpi=144).startswith(b"\x89PNG")
 
 
-def test_missing_pdf_token_downgrades_only_the_affected_dimension():
-    evidence = extract_pdf_evidence(
-        _pdf("PDF-001 Evidence block 6061-T6 0.500 1.500")
+def test_dimension_recovery_crops_anchor_on_numbers_from_uncertainty():
+    document = pymupdf.open()
+    page = document.new_page(width=612, height=792)
+    page.insert_text((72, 90), "6.36 ordinate")
+    page.insert_text((72, 690), "12.700 THRU THICKNESS")
+    payload = document.tobytes()
+    document.close()
+
+    crops = render_dimension_recovery_crops(
+        payload,
+        ["Nearby 6.36 and 12.700 callouts require visual tracing."],
+        max_crops=2,
+        dpi=144,
     )
+
+    assert len(crops) == 2
+    assert all(crop.page_number == 1 for crop in crops)
+    assert all(crop.region is not None for crop in crops)
+    assert all(crop.png_bytes.startswith(b"\x89PNG") for crop in crops)
+
+
+def test_missing_pdf_token_downgrades_only_the_affected_dimension():
+    evidence = extract_pdf_evidence(_pdf("PDF-001 Evidence block 6061-T6 0.500 1.500"))
     interpretation = _interpretation()
     batch = ReaderBatch(
         reads=[
@@ -115,20 +133,20 @@ def test_missing_pdf_token_downgrades_only_the_affected_dimension():
     assert response.dimensions.thickness.status is FieldStatus.RESOLVED
     assert response.dimensions.width.status is FieldStatus.RESOLVED
     assert response.dimensions.length.status is FieldStatus.NEEDS_REVIEW
-    assert response.recommendation is None
+    assert response.recommendation is not None
+    assert response.recommendation.stock_thickness is not None
+    assert response.recommendation.stock_width is not None
+    assert response.recommendation.cut_length is None
 
 
 def test_material_grade_survives_equivalent_nonverbatim_reader_wording():
     evidence = extract_pdf_evidence(
-        _pdf(
-            "PDF-001 MATERIAL: A2 PER ASTM A681 TOOL STEEL 0.500 1.500 2.000"
-        )
+        _pdf("PDF-001 MATERIAL: A2 PER ASTM A681 TOOL STEEL 0.500 1.500 2.000")
     )
     sol = _interpretation().model_copy(
         update={
             "material_callout_raw": (
-                "High speed tool steel T1-T15 or M1-M62 ASTM A600; "
-                "A2 alloy tool steel ASTM A681"
+                "High speed tool steel T1-T15 or M1-M62 ASTM A600; A2 alloy tool steel ASTM A681"
             ),
             "material_classification": MaterialClassification.TOOL_STEEL,
         }
@@ -136,8 +154,7 @@ def test_material_grade_survives_equivalent_nonverbatim_reader_wording():
     terra = sol.model_copy(
         update={
             "material_callout_raw": (
-                "Tool steel ranges T1 through T15 and M1 through M62, "
-                "or A2 per ASTM-A-681"
+                "Tool steel ranges T1 through T15 and M1 through M62, or A2 per ASTM-A-681"
             )
         }
     )
@@ -159,10 +176,7 @@ def test_material_grade_survives_equivalent_nonverbatim_reader_wording():
 
 def test_explicit_title_block_units_resolve_dual_dimension_reader_disagreement():
     evidence = extract_pdf_evidence(
-        _pdf(
-            "PDF-001 6061-T6 DIMENSIONS ARE IN INCHES "
-            "0.500 12.700 1.500 38.100 2.000 50.800"
-        )
+        _pdf("PDF-001 6061-T6 DIMENSIONS ARE IN INCHES 0.500 12.700 1.500 38.100 2.000 50.800")
     )
     inch_read = _interpretation()
     metric_read = inch_read.model_copy(

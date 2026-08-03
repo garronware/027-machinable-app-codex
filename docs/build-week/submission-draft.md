@@ -10,7 +10,7 @@
 - **Category:** Work & Productivity
 - **Tagline:** Turn a digital engineering drawing into an evidence-backed raw
   stock recommendation.
-- **Repository URL:** **BLOCKED — no Git remote configured**
+- **Repository URL:** **PENDING — `https://github.com/garronware/027-machinable-for-build-week`; confirm unauthenticated judge access**
 - **Live demo or test build:** **BLOCKED — not deployed**
 - **Public YouTube video:** **BLOCKED — not recorded/uploaded**
 - **Primary `/feedback` Session ID:** **BLOCKED — must be generated from the

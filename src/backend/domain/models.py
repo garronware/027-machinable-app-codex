@@ -188,6 +188,54 @@ class DrawingInterpretation(BaseModel):
     unsupported_reason: str | None
 
 
+class TitleBlockInterpretation(BaseModel):
+    """Focused Terra read of material purchasing facts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    material_callout_raw: str | None
+    material_callout_evidence: list[str]
+    material_name: str | None
+    material_classification: MaterialClassification
+    warnings: list[str]
+
+
+class GeometryInterpretation(BaseModel):
+    """Focused Sol read of stock shape and the applicable finished envelope."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    shape: Shape
+    bounding: BoundingDimensions
+    drawing_stock_callout: DrawingStockCallout | None
+    projection: Literal["THIRD_ANGLE", "FIRST_ANGLE", "OTHER", "UNKNOWN"]
+    identified_views: list[str]
+    warnings: list[str]
+    conflicts: list[str]
+    unsupported_reason: str | None
+
+
+class RecoveredDimension(BaseModel):
+    """One axis proposed by the conditional focused-crop recovery pass."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    axis: DimensionAxis
+    value: float | None
+    units: Units
+    source: DimensionSource
+    evidence: str | None
+    uncertainty: str | None
+
+
+class DimensionRecoveryInterpretation(BaseModel):
+    """Compact output for only the stock-blocking axes requested for recovery."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dimensions: list[RecoveredDimension]
+
+
 class ReaderResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -207,6 +255,30 @@ class ReaderBatch(BaseModel):
 
     reads: list[ReaderResult]
     failures: list[ReaderFailure]
+
+
+class TitleBlockReaderResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reader_model: str
+    interpretation: TitleBlockInterpretation
+
+
+class GeometryReaderResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reader_model: str
+    interpretation: GeometryInterpretation
+    recovered_axes: list[DimensionAxis] = Field(default_factory=list)
+
+
+class SpecializedReaderBatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: TitleBlockReaderResult | None
+    geometry: GeometryReaderResult | None
+    failures: list[ReaderFailure]
+    model_calls_attempted: int = Field(default=2, ge=0)
 
 
 class FieldCandidate(BaseModel):
@@ -326,12 +398,12 @@ class StockRecommendation(BaseModel):
     stock_thickness: str | None
     stock_width: str | None
     stock_diameter: str | None
-    cut_length: str
-    closest_drop_length: str
-    bar_yield: str
+    cut_length: str | None
+    closest_drop_length: str | None
+    bar_yield: str | None
     dominant_machining_process: str
-    finished_dimensions: dict[str, float | str]
-    adjusted_dimensions: dict[str, float | str]
+    finished_dimensions: dict[str, float | str | None]
+    adjusted_dimensions: dict[str, float | str | None]
 
 
 class RecalculationDimensions(BaseModel):

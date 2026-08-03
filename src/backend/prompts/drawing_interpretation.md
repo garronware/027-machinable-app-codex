@@ -21,11 +21,10 @@ conceal uncertainty, or use external data.
 - A warning is not a substitute for a missing required value. If views conflict
   or more than one valid reading remains, describe the conflict and leave the
   affected value null.
-- Attempt every requested field independently. Failure to resolve dimensions
-  must not prevent returning an explicit material callout, stock shape, units,
-  part identity, or drawing-specified stock callout.
-- You are one of two independent full readers. Do not assume the other reader
-  will fill gaps, and do not speculate about the other reader's answer.
+- Follow the task-specific scope supplied with the PDF. Resolve every field in
+  that focused response independently, but do not add facts outside that role.
+- Do not assume another model call will correct or fill gaps in the fields
+  assigned to you.
 
 ## Evidence order
 

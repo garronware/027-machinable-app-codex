@@ -4,8 +4,10 @@ Machinable is a desktop-first web application that reads a digitally generated
 engineering-drawing PDF and returns the most useful raw-material information
 the available evidence supports.
 
-The authoritative product and implementation direction is
-[`docs/build-week/build-brief.md`](docs/build-week/build-brief.md).
+The Build Week implementation brief is
+[`docs/build-week/build-brief.md`](docs/build-week/build-brief.md); current
+repository behavior and engineering constraints are maintained in
+[`AGENTS.md`](AGENTS.md).
 Build Week provenance and submission readiness are maintained in
 [`docs/build-week/build-week-evidence.md`](docs/build-week/build-week-evidence.md).
 
@@ -15,10 +17,14 @@ is ordered or cut.
 
 ## Target workflow
 
-- GPT-5.6 Sol High and Terra High independently read the same critical fields.
+- GPT-5.6 Sol High reads stock shape and applicable bounding dimensions.
+- GPT-5.6 Terra High reads material purchasing facts only.
+- If Sol misses a stock-blocking cross-section dimension, one conditional Sol
+  call reviews focused high-resolution crops around the candidate callouts.
 - PDF text and page coordinates provide an additional textual witness.
-- Part identity, units, material, shape, dimensions, and drawing-specified stock
-  callouts resolve independently.
+- Part identity is non-gating and is not requested from either model.
+- Units, material, shape, dimensions, and drawing-specified stock callouts
+  resolve independently.
 - A dimension failure does not hide resolved material or shape.
 - Detailed material resolution produces supplier-facing language while
   retaining the exact drawing callout and qualified uncertainty.
@@ -37,7 +43,8 @@ MVP.
 The repository currently has:
 
 - a FastAPI backend;
-- independent GPT-5.6 Sol High and Terra High structured PDF reads;
+- focused GPT-5.6 Sol High geometry and Terra High material reads;
+- conditional high-resolution Sol recovery for missing stock cross-sections;
 - field-level arbitration and HTTP 200 partial-success responses;
 - deterministic PDF text tokens, page coordinates, and claim checks;
 - conservative material and supplier-language resolution;
@@ -48,8 +55,11 @@ The repository currently has:
 - offline tests and an opt-in paid evaluation harness; and
 - `part-prints/print-index.md` as the sole dimensional evaluation truth.
 
-The full dual-reader flow still needs controlled paid evaluation on the local
-drawing corpus before deployment or production-readiness claims.
+A 10-print paid evaluation of the first specialized-reader implementation is
+saved at
+`tests/evaluation/runs/specialized-10-print-2026-07-26.json`. The focused prompt
+and conditional recovery changes made after that run still require controlled
+paid evaluation before any production-readiness claim.
 
 ## Baseline setup
 
@@ -94,7 +104,9 @@ make eval-help
 uv run python -m tests.evaluation.evaluate_vision --limit 3
 ```
 
-Use `--all` only after approving the exact paid-call plan.
+Each part normally makes two paid calls. A third Sol call is made only when a
+stock-blocking cross-section dimension is missing. Use `--all` only after
+approving the exact paid-call plan.
 
 ## Build Week provenance
 

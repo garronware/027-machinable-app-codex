@@ -45,6 +45,12 @@ def _require_dimension(name: str, dimension: DimensionEvidence) -> float:
     return float(dimension.value)
 
 
+def _optional_dimension(name: str, dimension: DimensionEvidence) -> float | None:
+    if dimension.value is None or dimension.source is DimensionSource.NOT_FOUND:
+        return None
+    return _require_dimension(name, dimension)
+
+
 def effective_round_diameter(
     interpretation: DrawingInterpretation,
 ) -> tuple[float, str | None]:
@@ -107,7 +113,7 @@ def interpretation_to_bounding_data(
 
     if interpretation.shape is Shape.ROUND:
         diameter, derived_path = effective_round_diameter(interpretation)
-        length = _require_dimension("Overall length", interpretation.bounding.length)
+        length = _optional_dimension("Overall length", interpretation.bounding.length)
         data = {
             "Metric_or_Imperial": units,
             "Bounding_Cyl": {
@@ -126,7 +132,7 @@ def interpretation_to_bounding_data(
 
     thickness = _require_dimension("Overall thickness", interpretation.bounding.thickness)
     width = _require_dimension("Overall width", interpretation.bounding.width)
-    length = _require_dimension("Overall length", interpretation.bounding.length)
+    length = _optional_dimension("Overall length", interpretation.bounding.length)
     return (
         {
             "Metric_or_Imperial": units,

@@ -353,6 +353,28 @@ Week is not automatically classified as new if its behavior or data came from
   deployment, video, user attestations, and a real `/feedback` result remain
   unresolved.
 
+### July 21, 2026 — recurring evidence reconciliation at 6:28 p.m. EDT
+
+- Classification: pre-existing and reused documentation maintenance; no product
+  capability was added or reclassified by this reconciliation.
+- Previous behavior: the submission draft still identified the repository URL
+  as blocked because no remote was configured.
+- New behavior: the draft now identifies the configured GitHub URL while
+  keeping unauthenticated judge access pending. Local Git verification found
+  `HEAD` and `origin/main` at the same commit, `976c0d5`.
+- Codex contribution: recurring documentation reconciliation. The completed
+  task-history lookup did not return before its read timeout, so this entry
+  makes no completed-task claim and does not treat a raw task ID as a
+  `/feedback` result.
+- Commit: none. This documentation change is uncommitted working-tree evidence.
+- Verification at 6:28 p.m. EDT: the working tree was clean before this
+  documentation update; `git diff --check` passed; `origin` resolves locally
+  to `https://github.com/garronware/027-machinable-for-build-week.git`; and
+  `HEAD` equaled the local `origin/main` ref at `976c0d5`.
+- Remaining blockers: unauthenticated judge access, repository license,
+  controlled paid dual-reader evaluation, an authorized judge drawing or test
+  path, deployment, video, user attestations, and a real `/feedback` result.
+
 ## Third-party, IP, and privacy safeguards
 
 - Private drawing PDFs are ignored under `part-prints/*.pdf` and must not be

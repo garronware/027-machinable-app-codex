@@ -150,12 +150,12 @@ export interface StockRecommendation {
   stock_thickness: string | null;
   stock_width: string | null;
   stock_diameter: string | null;
-  cut_length: string;
-  closest_drop_length: string;
-  bar_yield: string;
+  cut_length: string | null;
+  closest_drop_length: string | null;
+  bar_yield: string | null;
   dominant_machining_process: string;
-  finished_dimensions: Record<string, string | number>;
-  adjusted_dimensions: Record<string, string | number>;
+  finished_dimensions: Record<string, string | number | null>;
+  adjusted_dimensions: Record<string, string | number | null>;
 }
 
 export interface ReaderSummary {

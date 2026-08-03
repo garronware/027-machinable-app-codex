@@ -8,14 +8,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.routes.analysis import router as analysis_router
-from backend.clients.openai_vision import OpenAIDualReaderClient
+from backend.clients.openai_vision import OpenAISpecializedReaderClient
 from backend.core.config import settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.drawing_reader = (
-        OpenAIDualReaderClient(
+        OpenAISpecializedReaderClient(
             api_key=settings.openai_api_key,
             sol_model=settings.openai_sol_model,
             terra_model=settings.openai_terra_model,

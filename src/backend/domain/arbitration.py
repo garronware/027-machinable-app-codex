@@ -28,6 +28,7 @@ from backend.domain.models import (
     ReaderStatus,
     ReaderSummary,
     Shape,
+    SpecializedReaderBatch,
     Units,
 )
 
@@ -178,11 +179,7 @@ def _resolve_material(batch: ReaderBatch) -> MaterialResult:
             else None
         ),
         resolution_confidence=(
-            "HIGH"
-            if status is FieldStatus.RESOLVED
-            else "MEDIUM"
-            if class_agreement
-            else "UNKNOWN"
+            "HIGH" if status is FieldStatus.RESOLVED else "MEDIUM" if class_agreement else "UNKNOWN"
         ),
         ambiguities=ambiguities,
         temper_source=None,
@@ -445,6 +442,290 @@ def arbitrate_reader_batch(batch: ReaderBatch) -> AnalysisResponse:
         blocked_outputs=[],
         reader_summaries=summaries,
         validation_summary=validation,
+        warnings=warnings,
+        verification_message=MACHINIST_VERIFICATION,
+    )
+
+
+def _focused_text_result(
+    value: str | None,
+    *,
+    reader_model: str,
+    evidence: list[str] | None = None,
+) -> FieldResult:
+    if value and value.strip():
+        return FieldResult(
+            status=FieldStatus.RESOLVED,
+            value=value.strip(),
+            candidates=[
+                FieldCandidate(
+                    reader_model=reader_model,
+                    value=value.strip(),
+                    evidence=evidence or [],
+                    uncertainty=None,
+                )
+            ],
+            reasons=[],
+        )
+    return FieldResult(
+        status=FieldStatus.MISSING,
+        value=None,
+        candidates=[],
+        reasons=[],
+    )
+
+
+def _focused_dimension_result(
+    evidence: DimensionEvidence,
+    *,
+    units: Units,
+    reader_model: str,
+) -> DimensionFieldResult:
+    candidate = _dimension_candidate(reader_model, units, evidence)
+    if evidence.value is None:
+        return DimensionFieldResult(
+            status=FieldStatus.MISSING,
+            value=None,
+            units=None,
+            source=None,
+            dimension_path=None,
+            candidates=[candidate],
+            reasons=[],
+        )
+    problem = _candidate_problem(candidate)
+    if problem:
+        return DimensionFieldResult(
+            status=FieldStatus.NEEDS_REVIEW,
+            value=None,
+            units=None,
+            source=None,
+            dimension_path=None,
+            candidates=[candidate],
+            reasons=[problem],
+        )
+    return DimensionFieldResult(
+        status=FieldStatus.RESOLVED,
+        value=evidence.value,
+        units=units,
+        source=evidence.source,
+        dimension_path=evidence.dimension_path,
+        candidates=[candidate],
+        reasons=[],
+    )
+
+
+def response_from_specialized_read(batch: SpecializedReaderBatch) -> AnalysisResponse:
+    """Combine non-overlapping Terra and Sol duties without agreement gating."""
+
+    part_number = _focused_text_result(None, reader_model="not-requested")
+    part_name = _focused_text_result(None, reader_model="not-requested")
+    if batch.title is None:
+        material = MaterialResult(
+            status=FieldStatus.MISSING,
+            raw_callout=None,
+            raw_callout_evidence=[],
+            canonical_grade=None,
+            standard_system=None,
+            material_family=None,
+            temper_or_condition=None,
+            specification=None,
+            resolved_identity=None,
+            supplier_description=None,
+            supplier_search_terms={},
+            allowance_class=None,
+            resolution_basis=None,
+            resolution_confidence="UNKNOWN",
+            ambiguities=[],
+            temper_source=None,
+            temper_confirmation_required=False,
+            sources=[],
+            candidates=[],
+        )
+    else:
+        title = batch.title.interpretation
+        material_value = title.material_name or title.material_callout_raw
+        material_resolved = bool(
+            material_value and title.material_classification is not MaterialClassification.NOT_FOUND
+        )
+        material = MaterialResult(
+            status=FieldStatus.RESOLVED if material_resolved else FieldStatus.MISSING,
+            raw_callout=title.material_callout_raw,
+            raw_callout_evidence=title.material_callout_evidence,
+            canonical_grade=None,
+            standard_system=None,
+            material_family=(title.material_classification.value if material_resolved else None),
+            temper_or_condition=None,
+            specification=None,
+            resolved_identity=material_value if material_resolved else None,
+            supplier_description=material_value if material_resolved else None,
+            supplier_search_terms={},
+            allowance_class=(title.material_classification if material_resolved else None),
+            resolution_basis="Focused Terra material read.",
+            resolution_confidence="HIGH" if material_resolved else "UNKNOWN",
+            ambiguities=[],
+            temper_source=None,
+            temper_confirmation_required=False,
+            sources=[],
+            candidates=[
+                MaterialCandidate(
+                    reader_model=batch.title.reader_model,
+                    raw_callout=title.material_callout_raw,
+                    allowance_class=title.material_classification,
+                    evidence=title.material_callout_evidence,
+                )
+            ],
+        )
+
+    if batch.geometry is None:
+        units = _focused_text_result(None, reader_model="gpt-5.6-sol")
+        shape = _focused_text_result(None, reader_model="gpt-5.6-sol")
+        missing_dimension = DimensionFieldResult(
+            status=FieldStatus.MISSING,
+            value=None,
+            units=None,
+            source=None,
+            dimension_path=None,
+            candidates=[],
+            reasons=[],
+        )
+        dimensions = DimensionFieldResults(
+            diameter=missing_dimension.model_copy(deep=True),
+            thickness=missing_dimension.model_copy(deep=True),
+            width=missing_dimension.model_copy(deep=True),
+            length=missing_dimension.model_copy(deep=True),
+        )
+        stock_callout = DrawingStockCalloutResult(
+            status=FieldStatus.MISSING,
+            value=None,
+            candidates=[],
+            reasons=[],
+        )
+    else:
+        geometry = batch.geometry.interpretation
+        units = _focused_text_result(
+            (None if geometry.bounding.units is Units.UNKNOWN else geometry.bounding.units.value),
+            reader_model=batch.geometry.reader_model,
+        )
+        shape = _focused_text_result(
+            None if geometry.shape is Shape.UNKNOWN else geometry.shape.value,
+            reader_model=batch.geometry.reader_model,
+        )
+        dimensions = DimensionFieldResults(
+            diameter=_focused_dimension_result(
+                geometry.bounding.diameter,
+                units=geometry.bounding.units,
+                reader_model=batch.geometry.reader_model,
+            ),
+            thickness=_focused_dimension_result(
+                geometry.bounding.thickness,
+                units=geometry.bounding.units,
+                reader_model=batch.geometry.reader_model,
+            ),
+            width=_focused_dimension_result(
+                geometry.bounding.width,
+                units=geometry.bounding.units,
+                reader_model=batch.geometry.reader_model,
+            ),
+            length=_focused_dimension_result(
+                geometry.bounding.length,
+                units=geometry.bounding.units,
+                reader_model=batch.geometry.reader_model,
+            ),
+        )
+        stock_callout = DrawingStockCalloutResult(
+            status=(
+                FieldStatus.RESOLVED
+                if geometry.drawing_stock_callout is not None
+                else FieldStatus.MISSING
+            ),
+            value=geometry.drawing_stock_callout,
+            candidates=(
+                [
+                    DrawingStockCalloutCandidate(
+                        reader_model=batch.geometry.reader_model,
+                        value=geometry.drawing_stock_callout,
+                    )
+                ]
+                if geometry.drawing_stock_callout is not None
+                else []
+            ),
+            reasons=[],
+        )
+
+    def actionable_warnings(items: list[str]) -> list[str]:
+        kept: list[str] = []
+        for item in items:
+            normalized = item.casefold()
+            harmless_dual_units = (
+                ("dual-unit" in normalized or "bracketed" in normalized)
+                and ("treated as primary" in normalized or "equivalent" in normalized)
+                and not any(
+                    marker in normalized
+                    for marker in ("disagree", "mismatch", "ambiguous", "unclear")
+                )
+            )
+            if not harmless_dual_units:
+                kept.append(item)
+        return kept
+
+    summaries: list[ReaderSummary] = []
+    warnings: list[str] = []
+    if batch.title is not None:
+        title_warnings = actionable_warnings(batch.title.interpretation.warnings)
+        warnings.extend(title_warnings)
+        summaries.append(
+            ReaderSummary(
+                reader_model=batch.title.reader_model,
+                status=ReaderStatus.SUCCEEDED,
+                warnings=title_warnings,
+                conflicts=[],
+                error=None,
+            )
+        )
+    if batch.geometry is not None:
+        geometry_warnings = actionable_warnings(batch.geometry.interpretation.warnings)
+        warnings.extend(geometry_warnings)
+        summaries.append(
+            ReaderSummary(
+                reader_model=batch.geometry.reader_model,
+                status=ReaderStatus.SUCCEEDED,
+                warnings=geometry_warnings,
+                conflicts=batch.geometry.interpretation.conflicts,
+                error=None,
+            )
+        )
+    for failure in batch.failures:
+        summaries.append(
+            ReaderSummary(
+                reader_model=failure.reader_model,
+                status=ReaderStatus.FAILED,
+                warnings=[],
+                conflicts=[],
+                error=failure.error,
+            )
+        )
+
+    unsupported_reason = (
+        batch.geometry.interpretation.unsupported_reason if batch.geometry is not None else None
+    )
+    return AnalysisResponse(
+        analysis_id=str(uuid.uuid4()),
+        presentation_status=(
+            PresentationStatus.UNSUPPORTED
+            if unsupported_reason
+            else PresentationStatus.PARTIAL_SUCCESS
+        ),
+        part_number=part_number,
+        part_name=part_name,
+        units=units,
+        material=material,
+        shape=shape,
+        dimensions=dimensions,
+        drawing_stock_callout=stock_callout,
+        recommendation=None,
+        blocked_outputs=[],
+        reader_summaries=summaries,
+        validation_summary=([unsupported_reason] if unsupported_reason is not None else []),
         warnings=warnings,
         verification_message=MACHINIST_VERIFICATION,
     )
