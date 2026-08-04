@@ -68,11 +68,15 @@ function ResultTicket({ analysis }: { analysis: AnalysisResponse }) {
     (shape === "ROUND" ? "LATHE" : shape === "FLAT" ? "MILL" : null);
   const stock =
     recommendation
-      ? `${recommendation.stock_shape} ${recommendation.stock_form}`
+      ? recommendation.stock_form.toUpperCase() === "PLATE"
+        ? "Plate"
+        : recommendation.stock_shape.toUpperCase() === "ROUND"
+          ? "Round Bar"
+          : "Flat Bar"
       : shape === "ROUND"
-        ? "Round Bar/Disc"
+        ? "Round Bar"
         : shape === "FLAT"
-          ? "Flat Bar/Plate"
+          ? "Flat Bar or Plate"
           : null;
   const material =
     recommendation?.material_name ??
@@ -95,12 +99,18 @@ function ResultTicket({ analysis }: { analysis: AnalysisResponse }) {
           <>
             <TicketRow label="Stock Thk" value={recommendation?.stock_thickness} />
             <TicketRow label="Stock W" value={recommendation?.stock_width} />
+            {recommendation?.stock_form.toUpperCase() === "PLATE" ? (
+              <TicketRow label="Stock L" value={recommendation.stock_length} />
+            ) : null}
           </>
         ) : null}
         <TicketRow label="Cut Length" value={recommendation?.cut_length} />
         <TicketRow label="Drop Length" value={recommendation?.closest_drop_length} />
         <TicketRow label="12-ft Bar Yield" value={recommendation?.bar_yield} />
       </dl>
+      {recommendation?.stock_note ? (
+        <p className="stock-status">{recommendation.stock_note}</p>
+      ) : null}
       {statusMessage ? <p className="stock-status">{statusMessage}</p> : null}
     </section>
   );

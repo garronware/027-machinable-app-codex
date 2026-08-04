@@ -46,7 +46,7 @@ FAMILY_RULES = (
     ),
     MaterialFamilyRule(
         re.compile(r"\b(?:1008|1018|1020|1215|A36)\b|MILD STEEL", re.I),
-        MaterialClassification.MILD_STEEL,
+        MaterialClassification.CARBON_STEEL,
         "Carbon Steel",
         "Carbon Steel",
     ),

@@ -23,7 +23,7 @@ class Units(StrEnum):
 class MaterialClassification(StrEnum):
     ALUMINUM = "ALUMINUM"
     TITANIUM = "TITANIUM"
-    MILD_STEEL = "MILD_STEEL"
+    CARBON_STEEL = "CARBON_STEEL"
     ALLOY_STEEL = "ALLOY_STEEL"
     STAINLESS_STEEL = "STAINLESS_STEEL"
     TOOL_STEEL = "TOOL_STEEL"
@@ -397,10 +397,12 @@ class StockRecommendation(BaseModel):
     supplier_description: str
     stock_thickness: str | None
     stock_width: str | None
+    stock_length: str | None
     stock_diameter: str | None
     cut_length: str | None
     closest_drop_length: str | None
     bar_yield: str | None
+    stock_note: str | None
     dominant_machining_process: str
     finished_dimensions: dict[str, float | str | None]
     adjusted_dimensions: dict[str, float | str | None]

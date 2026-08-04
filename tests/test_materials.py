@@ -92,6 +92,13 @@ def test_multiple_accepted_grades_are_preserved_as_a_menu():
     assert "4130 / 4140" in (result.supplier_description or "")
 
 
+def test_1018_is_classified_as_carbon_steel():
+    result = resolve_material(_material("1018 Mild Steel"), _shape("FLAT"))
+
+    assert result.allowance_class is MaterialClassification.CARBON_STEEL
+    assert result.resolved_identity == "1018 Carbon Steel"
+
+
 def test_a2_tool_steel_is_customer_identity_not_internal_class_name():
     result = resolve_material(
         _material("ALLOY TOOL STEEL, A2 PER ASTM-A-681"), _shape()

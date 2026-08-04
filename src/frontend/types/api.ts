@@ -18,7 +18,7 @@ export type DimensionSource =
 export type MaterialClassification =
   | "ALUMINUM"
   | "TITANIUM"
-  | "MILD_STEEL"
+  | "CARBON_STEEL"
   | "ALLOY_STEEL"
   | "STAINLESS_STEEL"
   | "TOOL_STEEL"
@@ -149,10 +149,12 @@ export interface StockRecommendation {
   supplier_description: string;
   stock_thickness: string | null;
   stock_width: string | null;
+  stock_length: string | null;
   stock_diameter: string | null;
   cut_length: string | null;
   closest_drop_length: string | null;
   bar_yield: string | null;
+  stock_note: string | null;
   dominant_machining_process: string;
   finished_dimensions: Record<string, string | number | null>;
   adjusted_dimensions: Record<string, string | number | null>;

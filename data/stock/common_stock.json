@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "supported_material_families": [
+    "ALLOY_STEEL",
+    "ALUMINUM",
+    "TITANIUM",
+    "TOOL_STEEL",
+    "STAINLESS_STEEL",
+    "CARBON_STEEL"
+  ],
+  "bar_defaults": {
+    "standard_length_in": 144.0,
+    "drop_lengths_ft": [1.0, 2.0, 4.0, 6.0],
+    "saw_kerf_in": 0.125,
+    "starting_end_trim_in": 1.0,
+    "custom_length_step_in": 12.0
+  },
+  "round_bar": {
+    "diameters_in": [
+      0.125,
+      0.25,
+      0.375,
+      0.5,
+      0.625,
+      0.75,
+      0.875,
+      1.0,
+      1.25,
+      1.5,
+      1.75,
+      2.0,
+      2.5,
+      3.0,
+      3.5,
+      4.0,
+      5.0,
+      6.0,
+      8.0,
+      10.0,
+      12.0
+    ],
+    "custom_diameter_bands": [
+      {"through_in": 20.0, "step_in": 2.0},
+      {"through_in": 32.0, "step_in": 4.0},
+      {"through_in": null, "step_in": 1.0}
+    ]
+  },
+  "flat_bar": {
+    "plate_width_to_thickness_ratio": 2.0,
+    "custom_dimension_step_in": 1.0,
+    "pairs_in": [
+      {"thickness_in": 0.125, "widths_in": [0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 12.0]},
+      {"thickness_in": 0.25, "widths_in": [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 12.0]},
+      {"thickness_in": 0.375, "widths_in": [0.375, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 12.0]},
+      {"thickness_in": 0.5, "widths_in": [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 12.0]},
+      {"thickness_in": 0.625, "widths_in": [0.625, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 12.0]},
+      {"thickness_in": 0.75, "widths_in": [0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 12.0]},
+      {"thickness_in": 1.0, "widths_in": [1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0]},
+      {"thickness_in": 1.25, "widths_in": [1.25, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0]},
+      {"thickness_in": 1.5, "widths_in": [1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0]},
+      {"thickness_in": 2.0, "widths_in": [2.0, 3.0, 4.0, 6.0, 8.0, 12.0]},
+      {"thickness_in": 2.5, "widths_in": [2.5, 3.0, 4.0, 6.0, 8.0, 12.0]},
+      {"thickness_in": 3.0, "widths_in": [3.0, 4.0, 6.0, 8.0, 12.0]}
+    ]
+  },
+  "plate": {
+    "thicknesses_in": [0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 1.0, 1.25, 1.5, 2.0],
+    "panels_in": [
+      [12.0, 12.0],
+      [12.0, 24.0],
+      [24.0, 24.0],
+      [24.0, 48.0],
+      [48.0, 48.0],
+      [48.0, 96.0],
+      [48.0, 120.0]
+    ],
+    "custom_thickness_step_in": 0.5,
+    "custom_panel_step_in": 12.0
+  }
+}
