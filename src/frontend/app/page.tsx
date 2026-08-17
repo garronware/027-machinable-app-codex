@@ -4,6 +4,7 @@ import { DragEvent, useEffect, useRef, useState } from "react";
 
 import { analyzeDrawing } from "../services/api";
 import type { AnalysisResponse, Shape } from "../types/api";
+import { StockFormIcon, type StockFormIconKind } from "./stock-form-icons";
 
 function fieldValue(value: string | null | undefined): string {
   return value?.trim() || "—";
@@ -17,12 +18,27 @@ function acceptedText(
   );
 }
 
-function TicketRow({ label, value }: { label: string; value: string | null | undefined }) {
+function TicketRow({
+  icon,
+  label,
+  value,
+}: {
+  icon?: StockFormIconKind;
+  label: string;
+  value: string | null | undefined;
+}) {
   return (
     <div className="ticket-row">
       <dt>{label}</dt>
       <span aria-hidden="true" />
-      <dd>{fieldValue(value)}</dd>
+      <dd className={icon ? "stock-ticket-value" : undefined}>
+        {icon ? (
+          <i className="stock-form-icon">
+            <StockFormIcon form={icon} />
+          </i>
+        ) : null}
+        {fieldValue(value)}
+      </dd>
     </div>
   );
 }
@@ -78,6 +94,15 @@ function ResultTicket({ analysis }: { analysis: AnalysisResponse }) {
         : shape === "FLAT"
           ? "Flat Bar or Plate"
           : null;
+  const stockIcon: StockFormIconKind | undefined = recommendation
+    ? recommendation.stock_form.toUpperCase() === "PLATE"
+      ? "plate"
+      : recommendation.stock_shape.toUpperCase() === "ROUND"
+        ? "round-bar"
+        : "flat-bar"
+    : shape === "ROUND"
+      ? "round-bar"
+      : undefined;
   const material =
     recommendation?.material_name ??
     analysis.material.resolved_identity ??
@@ -91,7 +116,7 @@ function ResultTicket({ analysis }: { analysis: AnalysisResponse }) {
         <TicketRow label="Part Name" value={acceptedText(analysis.part_name)} />
         <TicketRow label="Process" value={process} />
         <TicketRow label="Material" value={material} />
-        <TicketRow label="Stock" value={stock} />
+        <TicketRow icon={stockIcon} label="Stock" value={stock} />
         {shape === "ROUND" ? (
           <TicketRow label="Stock Dia" value={recommendation?.stock_diameter} />
         ) : null}

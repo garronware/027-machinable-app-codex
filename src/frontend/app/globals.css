@@ -386,6 +386,62 @@ main {
   text-align: right;
 }
 
+.stock-ticket-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.stock-form-icon {
+  display: inline-flex;
+  width: 54px;
+  flex: 0 0 54px;
+  color: var(--blue);
+}
+
+.stock-form-icon svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.stock-icon-top,
+.stock-icon-side,
+.stock-icon-end,
+.stock-icon-round-far,
+.stock-icon-round-edge,
+.stock-icon-round-front {
+  stroke: currentColor;
+  stroke-linejoin: round;
+  stroke-width: 1;
+}
+
+.stock-icon-top {
+  fill: #dce9ff;
+}
+
+.stock-icon-side,
+.stock-icon-round-body-fill,
+.stock-icon-round-far {
+  fill: #a9c7fb;
+}
+
+.stock-icon-end,
+.stock-icon-round-front {
+  fill: #f4f8ff;
+}
+
+.stock-icon-round-body-fill {
+  stroke: none;
+}
+
+.stock-icon-round-edge {
+  fill: none;
+  stroke-linecap: round;
+}
+
 .stock-status {
   margin: 18px 0 0;
   padding-top: 14px;
