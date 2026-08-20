@@ -38,6 +38,52 @@ INCH_TO_MM = 25.4
 LATHE_FACE_ALLOW_INCH = 0.125
 
 
+def _allowance_in_drawing_units(
+    allowances: dict[str, float],
+    material_classification: str,
+    *,
+    is_metric: bool,
+    process: str,
+) -> float:
+    classification = material_classification.strip().upper()
+    if classification not in allowances:
+        raise ValueError(f"No {process} allowance is defined for {classification!r}.")
+    allowance = allowances[classification]
+    return allowance * INCH_TO_MM if is_metric else allowance
+
+
+def milling_allowance_in_drawing_units(
+    material_classification: str, *, is_metric: bool
+) -> float:
+    """Return the existing per-side milling allowance in the drawing's units."""
+
+    return _allowance_in_drawing_units(
+        MILLING_ALLOWANCES_INCH,
+        material_classification,
+        is_metric=is_metric,
+        process="milling",
+    )
+
+
+def turning_allowance_in_drawing_units(
+    material_classification: str, *, is_metric: bool
+) -> float:
+    """Return the existing radial turning allowance in the drawing's units."""
+
+    return _allowance_in_drawing_units(
+        TURNING_ALLOWANCES_INCH,
+        material_classification,
+        is_metric=is_metric,
+        process="turning",
+    )
+
+
+def lathe_face_allowance_in_drawing_units(*, is_metric: bool) -> float:
+    """Return the existing total face allowance in the drawing's units."""
+
+    return LATHE_FACE_ALLOW_INCH * INCH_TO_MM if is_metric else LATHE_FACE_ALLOW_INCH
+
+
 def add_machining_allowance(data: dict, material_classification: str) -> dict:
     """Add per-side stock without using a model for arithmetic."""
 
@@ -47,13 +93,10 @@ def add_machining_allowance(data: dict, material_classification: str) -> dict:
     result = dict(data)
 
     if "Bounding_Cube" in data:
-        if classification not in MILLING_ALLOWANCES_INCH:
-            raise ValueError(
-                f"No milling allowance is defined for {classification!r}."
-            )
-        allowance = MILLING_ALLOWANCES_INCH[classification]
-        if is_metric:
-            allowance *= INCH_TO_MM
+        allowance = milling_allowance_in_drawing_units(
+            classification,
+            is_metric=is_metric,
+        )
         cube = data["Bounding_Cube"]
         length = cube.get("L")
         result["Bndng_Plus_Mach_Stock"] = {
@@ -70,15 +113,11 @@ def add_machining_allowance(data: dict, material_classification: str) -> dict:
         return result
 
     if "Bounding_Cyl" in data:
-        if classification not in TURNING_ALLOWANCES_INCH:
-            raise ValueError(
-                f"No turning allowance is defined for {classification!r}."
-            )
-        allowance = TURNING_ALLOWANCES_INCH[classification]
-        face_allowance = LATHE_FACE_ALLOW_INCH
-        if is_metric:
-            allowance *= INCH_TO_MM
-            face_allowance *= INCH_TO_MM
+        allowance = turning_allowance_in_drawing_units(
+            classification,
+            is_metric=is_metric,
+        )
+        face_allowance = lathe_face_allowance_in_drawing_units(is_metric=is_metric)
         cylinder = data["Bounding_Cyl"]
         length = cylinder.get("L")
         result["Bndng_Plus_Mach_Stock"] = {

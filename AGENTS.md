@@ -28,9 +28,9 @@ the app is production-ready without evidence supporting that claim.
 The backend now uses GPT-5.6 Sol High for stock shape and applicable bounding
 dimensions and Terra High for material only. Part identity is deliberately
 non-gating and is not requested from either model. When Sol leaves a
-stock-blocking cross-section dimension unresolved, one conditional Sol call
-receives deterministic high-resolution PDF crops focused around the candidate
-callouts. Deterministic PDF evidence, shop math, stock selection, and
+stock-blocking cross-section dimension or overall length unresolved, one
+conditional Sol call receives deterministic high-resolution PDF crops focused
+around the candidate callouts. Deterministic PDF evidence, shop math, stock selection, and
 correction-only recalculation remain outside the models.
 
 The Expo reference application has been replaced by the approved desktop
@@ -52,7 +52,7 @@ and reason. Approval may cover one coherent batch.
 - Backend: FastAPI with typed Python and Pydantic data contracts.
 - Models: server-side GPT-5.6 Sol High for stock geometry, Terra High for
   material, and a conditional focused Sol recovery call only when a required
-  stock cross-section dimension remains missing.
+  stock cross-section dimension or overall length remains missing.
 - Database: Supabase PostgreSQL for optional analysis history.
 - Dependencies: `uv` for Python and npm for the frontend.
 - Deployment target: Next.js on Vercel and the existing FastAPI backend on

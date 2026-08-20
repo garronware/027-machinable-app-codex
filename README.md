@@ -19,8 +19,9 @@ is ordered or cut.
 
 - GPT-5.6 Sol High reads stock shape and applicable bounding dimensions.
 - GPT-5.6 Terra High reads material purchasing facts only.
-- If Sol misses a stock-blocking cross-section dimension, one conditional Sol
-  call reviews focused high-resolution crops around the candidate callouts.
+- If Sol misses a stock-blocking cross-section dimension or overall length, one
+  conditional Sol call reviews focused high-resolution crops around the
+  candidate callouts.
 - PDF text and page coordinates provide an additional textual witness.
 - Part identity is non-gating and is not requested from either model.
 - Units, material, shape, dimensions, and drawing-specified stock callouts
@@ -31,6 +32,8 @@ is ordered or cut.
 - Deterministic Python applies machining allowance, selects local standard
   stock, and calculates cut length, drop length, and yield when dependencies are
   resolved.
+- A complete, safe drawing-specified stock size takes precedence over the
+  generic catalog result while remaining separate from finished dimensions.
 - The production frontend is a desktop-first Next.js application with PDF
   preview, field-level review, manual correction, and recalculation.
 
@@ -44,7 +47,8 @@ The repository currently has:
 
 - a FastAPI backend;
 - focused GPT-5.6 Sol High geometry and Terra High material reads;
-- conditional high-resolution Sol recovery for missing stock cross-sections;
+- conditional high-resolution Sol recovery for missing stock cross-sections or
+  overall length;
 - field-level arbitration and HTTP 200 partial-success responses;
 - deterministic PDF text tokens, page coordinates, and claim checks;
 - conservative material and supplier-language resolution;
@@ -105,8 +109,8 @@ uv run python -m tests.evaluation.evaluate_vision --limit 3
 ```
 
 Each part normally makes two paid calls. A third Sol call is made only when a
-stock-blocking cross-section dimension is missing. Use `--all` only after
-approving the exact paid-call plan.
+stock-blocking cross-section dimension or overall length is missing. Use
+`--all` only after approving the exact paid-call plan.
 
 ## Build Week provenance
 

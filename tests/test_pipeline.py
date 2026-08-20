@@ -1,5 +1,7 @@
 """Offline checks for uncertainty handling and deterministic pipeline stages."""
 
+from pathlib import Path
+
 import pytest
 
 from backend.domain.dimensions import DrawingUncertainError
@@ -172,3 +174,17 @@ def test_round_pipeline_returns_stock_diameter_when_length_is_missing():
     assert material["Cut_L"] is None
     assert material["Closest_Drop_L"] is None
     assert material["12-Ft_Bar_Yields"] is None
+
+
+def test_result_ticket_uses_only_stock_dimensions_and_existing_neutral_status_style():
+    page = (
+        Path(__file__).resolve().parents[1] / "src" / "frontend" / "app" / "page.tsx"
+    ).read_text(encoding="utf-8")
+    ticket_source = page.split("function ResultTicket", maxsplit=1)[1].split(
+        "export default function HomePage", maxsplit=1
+    )[0]
+
+    assert "finished_dimensions" not in ticket_source
+    assert "adjusted_dimensions" not in ticket_source
+    assert 'className="error-banner"' not in ticket_source
+    assert 'className="stock-status"' in ticket_source

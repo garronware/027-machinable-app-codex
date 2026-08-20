@@ -8,6 +8,8 @@ from fractions import Fraction
 from functools import cache
 from pathlib import Path
 
+from backend.domain.models import DrawingStockCallout, Shape, StockForm, Units
+
 INCH_TO_MM = 25.4
 DATA_DIR = Path(__file__).resolve().parents[3] / "data" / "stock"
 COMMON_STOCK_PATH = DATA_DIR / "common_stock.json"
@@ -571,5 +573,78 @@ def _build_output(
             "Stock_Shape": stock_shape.capitalize(),
             "Stock_Form": stock_form.capitalize(),
             **raw_material_fields,
+        },
+    }
+
+
+def recommendation_from_drawing_stock(
+    callout: DrawingStockCallout,
+    *,
+    material_name: str,
+    finished_dimensions: dict[str, float | str | None],
+    adjusted_dimensions: dict[str, float | str | None],
+    dominant_machining_process: str,
+    catalog: dict | None = None,
+) -> dict:
+    """Build the normal output fields from a validated drawing stock callout."""
+
+    common_stock = catalog or COMMON_STOCK
+    is_metric = callout.units is Units.MM
+    conversion = INCH_TO_MM if is_metric else 1.0
+
+    def stock_dimension(value: float | None) -> str | None:
+        return (
+            _format_stock_dimension(float(value) / conversion, is_metric)
+            if value is not None
+            else None
+        )
+
+    def stock_length(value: float | None) -> str | None:
+        return _format_length(float(value) / conversion, is_metric) if value is not None else None
+
+    adjusted_length = _required_length_in(adjusted_dimensions, is_metric)
+    if callout.stock_form is StockForm.BAR:
+        length_fields = _bar_length_fields(
+            adjusted_length,
+            is_metric,
+            common_stock["bar_defaults"],
+        )
+    else:
+        form_name = callout.stock_form.value.capitalize()
+        length_fields = {
+            "Cut_L": (
+                _format_cut_length(adjusted_length, is_metric)
+                if adjusted_length is not None
+                else None
+            ),
+            "Closest_Drop_L": f"Not applicable for {form_name}.",
+            "12-Ft_Bar_Yields": f"Not applicable for {form_name}.",
+        }
+
+    stock_form = callout.stock_form.value.capitalize()
+    description_form = (
+        "Round Bar"
+        if callout.shape is Shape.ROUND and callout.stock_form is StockForm.BAR
+        else "Flat Bar"
+        if callout.shape is Shape.FLAT and callout.stock_form is StockForm.BAR
+        else stock_form
+    )
+    return {
+        "Part_Basics": {
+            "Dominant_Machining_Process": dominant_machining_process,
+            "Naked_Bounding_Dims": finished_dimensions,
+            "Naked_Dims_Plus_Machining_Alwnc": adjusted_dimensions,
+        },
+        "Raw_Matl_Needed": {
+            "Matl_Name": material_name,
+            "Stock_Shape": callout.shape.value.capitalize(),
+            "Stock_Form": stock_form,
+            "Stock_Thk": stock_dimension(callout.thickness),
+            "Stock_W": stock_dimension(callout.width),
+            "Stock_L": stock_length(callout.length),
+            "Stock_Dia": stock_dimension(callout.diameter),
+            **length_fields,
+            "Stock_Note": "Stock size is specified on the drawing.",
+            "Prod_Descr": f"{material_name} {description_form}".strip(),
         },
     }

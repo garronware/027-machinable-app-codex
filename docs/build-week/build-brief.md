@@ -390,14 +390,15 @@ Preserve:
 - both readers' evidence; and
 - whether it agrees with the calculated minimum stock.
 
-Do not treat a raw stock callout as a finished-part dimension. When both readers
-agree on an explicit stock callout, the UI may display it even if finished-part
-dimensions need review. Label its source as drawing-specified and do not present
-it as a newly calculated value.
+Do not treat a raw stock callout as a finished-part dimension. A complete,
+internally consistent callout that contains the calculated requirement on every
+comparable resolved axis is the primary recommendation, even if another
+finished-part axis remains unresolved. Preserve its purchasing form, populate
+the normal stock fields, and label its source as drawing-specified.
 
-When a deterministic recommendation is also available, compare the two. A
-drawing-specified stock size that fails to contain accepted finished dimensions
-or machining allowance requires review; it must not be silently replaced.
+An incomplete, ambiguous, or undersized drawing-specified stock size requires
+review and must not be silently accepted. Use the generic catalog flow only
+when no complete, safe explicit stock recommendation is available.
 
 ## Layer 2: field-level verification and arbitration
 
@@ -915,7 +916,8 @@ Deliver the audit before implementation.
 
 1. Feed only resolved dependencies into existing shop math.
 2. Preserve allowance, metric conversion, stock lookup, cut, drop, and yield.
-3. Compare drawing-specified stock with calculated stock when both exist.
+3. Prefer a complete, safe drawing-specified stock recommendation; otherwise
+   retain it for review and use the generic catalog flow when possible.
 4. Add manual correction and deterministic recalculation without rerunning
    successful model work.
 5. Add end-to-end API tests with fake readers.

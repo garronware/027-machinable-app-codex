@@ -66,13 +66,16 @@ function ResultTicket({ analysis }: { analysis: AnalysisResponse }) {
   const process =
     recommendation?.dominant_machining_process ??
     (shape === "ROUND" ? "LATHE" : shape === "FLAT" ? "MILL" : null);
+  const recommendationForm = recommendation?.stock_form.toUpperCase();
   const stock =
     recommendation
-      ? recommendation.stock_form.toUpperCase() === "PLATE"
+      ? recommendationForm === "PLATE"
         ? "Plate"
-        : recommendation.stock_shape.toUpperCase() === "ROUND"
-          ? "Round Bar"
-          : "Flat Bar"
+        : recommendationForm === "DISC"
+          ? "Disc"
+          : recommendation.stock_shape.toUpperCase() === "ROUND"
+            ? "Round Bar"
+            : "Flat Bar"
       : shape === "ROUND"
         ? "Round Bar"
         : shape === "FLAT"
@@ -99,10 +102,10 @@ function ResultTicket({ analysis }: { analysis: AnalysisResponse }) {
           <>
             <TicketRow label="Stock Thk" value={recommendation?.stock_thickness} />
             <TicketRow label="Stock W" value={recommendation?.stock_width} />
-            {recommendation?.stock_form.toUpperCase() === "PLATE" ? (
-              <TicketRow label="Stock L" value={recommendation.stock_length} />
-            ) : null}
           </>
+        ) : null}
+        {recommendation?.stock_length ? (
+          <TicketRow label="Stock L" value={recommendation.stock_length} />
         ) : null}
         <TicketRow label="Cut Length" value={recommendation?.cut_length} />
         <TicketRow label="Drop Length" value={recommendation?.closest_drop_length} />

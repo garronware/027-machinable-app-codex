@@ -14,6 +14,13 @@ class Shape(StrEnum):
     UNKNOWN = "UNKNOWN"
 
 
+class StockForm(StrEnum):
+    BAR = "BAR"
+    PLATE = "PLATE"
+    DISC = "DISC"
+    UNKNOWN = "UNKNOWN"
+
+
 class Units(StrEnum):
     IN = "IN"
     MM = "MM"
@@ -142,6 +149,7 @@ class DrawingStockCallout(BaseModel):
 
     raw_callout: str
     shape: Shape
+    stock_form: StockForm
     units: Units
     diameter: float | None
     thickness: float | None

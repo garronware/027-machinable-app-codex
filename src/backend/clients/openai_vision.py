@@ -37,7 +37,10 @@ RECOVERY_PROMPT_PATH = PROMPT_DIR / "dimension_recovery.md"
 ParsedModel = TypeVar("ParsedModel", bound=BaseModel)
 
 TITLE_TASK = "Return only the drawing's material purchasing facts."
-GEOMETRY_TASK = "Return only stock shape and applicable finished bounding dimensions."
+GEOMETRY_TASK = (
+    "Return only stock shape, applicable finished bounding dimensions, and any explicit "
+    "drawing-specified stock callout."
+)
 
 
 class ModelOutputError(RuntimeError):
@@ -164,22 +167,25 @@ class _FocusedImageReader:
 
 def _missing_stock_axes(geometry: GeometryInterpretation) -> list[DimensionAxis]:
     bounding = geometry.bounding
+    missing: list[DimensionAxis] = []
     if geometry.shape is Shape.FLAT:
-        return [
+        missing.extend(
             axis
             for axis, evidence in (
                 (DimensionAxis.THICKNESS, bounding.thickness),
                 (DimensionAxis.WIDTH, bounding.width),
             )
             if evidence.value is None
-        ]
-    if geometry.shape is Shape.ROUND:
+        )
+    elif geometry.shape is Shape.ROUND:
         cross_section_available = (
             bounding.thickness.value is not None and bounding.width.value is not None
         )
         if bounding.diameter.value is None and not cross_section_available:
-            return [DimensionAxis.DIAMETER]
-    return []
+            missing.append(DimensionAxis.DIAMETER)
+    if geometry.shape in (Shape.FLAT, Shape.ROUND) and bounding.length.value is None:
+        missing.append(DimensionAxis.LENGTH)
+    return missing
 
 
 def _recovery_anchor_texts(

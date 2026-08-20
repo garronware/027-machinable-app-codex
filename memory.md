@@ -7,6 +7,8 @@
   dated evidence, compliance-status, and submission-blocker record.
 - `docs/build-week/submission-draft.md` is working Devpost and demo-video copy,
   not proof that an external submission artifact exists.
+- `docs/stock-recommendation-decisions.md` is the approved implementation
+  handoff for length recovery and drawing-specified stock recommendations.
 - `README.md` is the current judge-facing setup, testing, limitation, and Codex
   collaboration guide.
 - The product is a desktop-first Next.js web application backed by FastAPI.
@@ -14,9 +16,9 @@
   High reads material purchasing facts only.
 - Part identity is deliberately non-gating and is not requested from either
   model.
-- When Sol misses a stock-blocking cross-section dimension, one conditional
-  Sol call reviews deterministic high-resolution crops around candidate
-  callouts.
+- When Sol misses a stock-blocking cross-section dimension or overall length,
+  one conditional Sol call reviews deterministic high-resolution crops around
+  candidate callouts.
 - PDF text tokens and page coordinates provide additional evidence.
 - Results are field-level: units, material, shape, dimensions, and explicit
   drawing stock callouts resolve independently.
@@ -34,8 +36,8 @@
 - FastAPI accepts digitally generated PDFs.
 - GPT-5.6 Sol High geometry and Terra High material reads run concurrently with
   separate, short contracts.
-- Missing stock cross-sections trigger at most one focused Sol recovery call;
-  accepted dimensions are never overwritten by recovery.
+- Missing stock cross-sections or overall length trigger at most one focused Sol
+  recovery call; accepted dimensions are never overwritten by recovery.
 - PDF text tokens, page coordinates, numeric witnesses, and page/region
   rendering are implemented with PyMuPDF.
 - The pipeline preserves each specialized result and resolves fields
@@ -94,9 +96,23 @@
 3. Report every geometry result, recovery call, material result, latency, and
    cost before further hardening.
 
+## Implemented stock-recommendation follow-up
+
+- Product decisions from the 2026-08-17 Titan-400-Subplate troubleshooting are
+  recorded in `docs/stock-recommendation-decisions.md`.
+- Missing Flat and Round length now participates in the existing one-call
+  focused recovery pass without overwriting accepted dimensions.
+- A complete, safe drawing-specified stock callout now populates the normal
+  recommendation fields and takes precedence over generic catalog selection.
+- Incomplete or conflicting callouts remain visible for review and fall back to
+  generic selection only when its independent inputs are resolved.
+- The pair-first Flat Bar/Plate policy and restrained result-ticket UI remain in
+  place. The Titan-400-Subplate case is verified offline with deterministic
+  fakes; no paid model evaluation or production change was made.
+
 ## Verification and known baseline issues
 
-- The repository has 39 deterministic offline backend tests passing, and the
+- The repository has 61 deterministic offline backend tests passing, and the
   Next.js production build, lint, and strict TypeScript checks pass.
 - Backend packaging and Uvicorn startup were verified.
 - The controlled 10-print specialized-reader evaluation ran on 2026-07-26; the

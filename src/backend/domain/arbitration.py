@@ -338,6 +338,7 @@ def _resolve_stock_callout(batch: ReaderBatch) -> DrawingStockCalloutResult:
         (
             _normalize_text(candidate.value.raw_callout),
             candidate.value.shape,
+            candidate.value.stock_form,
             candidate.value.units,
             candidate.value.diameter,
             candidate.value.thickness,

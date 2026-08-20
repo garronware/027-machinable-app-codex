@@ -118,10 +118,11 @@ from the supplied drawing, flag the affected value rather than guessing.
 ## Drawing-specified stock
 
 An engineer-specified raw stock size is separate from the finished-part bounding
-envelope. When present, return the exact callout, shape, dimensions, units, and
-evidence in `drawing_stock_callout`. Do not copy those stock dimensions into the
-finished bounding dimensions unless the drawing independently establishes that
-they are also the finished maximum extents.
+envelope. When present, return the exact callout, purchasing form (`BAR`,
+`PLATE`, or `DISC`), shape, dimensions, units, and evidence in
+`drawing_stock_callout`. Do not copy those stock dimensions into the finished
+bounding dimensions unless the drawing independently establishes that they are
+also the finished maximum extents.
 
 ## Shape and material
 

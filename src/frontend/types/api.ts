@@ -7,6 +7,7 @@ export type FieldStatus =
 export type PresentationStatus = "COMPLETE" | "PARTIAL_SUCCESS" | "UNSUPPORTED";
 export type Units = "IN" | "MM" | "UNKNOWN";
 export type Shape = "ROUND" | "FLAT" | "UNKNOWN";
+export type StockForm = "BAR" | "PLATE" | "DISC" | "UNKNOWN";
 export type DimensionSource =
   | "EXPLICIT_OVERALL"
   | "EXPLICIT_OUTERMOST_FEATURE"
@@ -126,6 +127,7 @@ export interface DimensionFieldResults {
 export interface DrawingStockCallout {
   raw_callout: string;
   shape: Shape;
+  stock_form: StockForm;
   units: Units;
   diameter: number | null;
   thickness: number | null;

@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import math
+
 from backend.domain.arbitration import (
     MACHINIST_VERIFICATION,
     arbitrate_reader_batch,
     response_from_specialized_read,
 )
 from backend.domain.dimensions import interpretation_to_bounding_data
-from backend.domain.machining import add_machining_allowance
+from backend.domain.machining import (
+    add_machining_allowance,
+    lathe_face_allowance_in_drawing_units,
+    milling_allowance_in_drawing_units,
+    turning_allowance_in_drawing_units,
+)
 from backend.domain.materials import resolve_material
 from backend.domain.models import (
     AnalysisResponse,
@@ -25,11 +32,12 @@ from backend.domain.models import (
     RecalculationResponse,
     Shape,
     SpecializedReaderBatch,
+    StockForm,
     StockRecommendation,
     Units,
 )
 from backend.domain.pdf_evidence import PdfEvidence, validate_response_against_pdf
-from backend.domain.stock import lookup_stock_size
+from backend.domain.stock import lookup_stock_size, recommendation_from_drawing_stock
 
 DEPENDENT_OUTPUTS = [
     "machining allowance",
@@ -185,26 +193,161 @@ def _dimension_in_inches(value: float, units: Units) -> float:
     return value / INCH_TO_MM if units is Units.MM else value
 
 
-def _validate_drawing_stock_containment(response: AnalysisResponse) -> bool:
+def _resolved_value(result: DimensionFieldResult) -> float | None:
+    if result.status is not FieldStatus.RESOLVED or result.value is None:
+        return None
+    return float(result.value)
+
+
+def _partial_envelopes(
+    response: AnalysisResponse,
+) -> tuple[dict[str, float | str | None], dict[str, float | str | None], str]:
+    """Apply unchanged allowance math only to independently resolved axes."""
+
+    assert response.units.value is not None
+    assert response.shape.value is not None
+    assert response.material.allowance_class is not None
+    units = Units(response.units.value)
+    shape = Shape(response.shape.value)
+    is_metric = units is Units.MM
+    unit_label = "METRIC (MM)" if is_metric else "IMPERIAL (IN)"
+    classification = response.material.allowance_class.value
+    length = _resolved_value(response.dimensions.length)
+
+    if shape is Shape.FLAT:
+        thickness = _resolved_value(response.dimensions.thickness)
+        width = _resolved_value(response.dimensions.width)
+        allowance = milling_allowance_in_drawing_units(
+            classification,
+            is_metric=is_metric,
+        )
+        finished = {
+            "Thk": thickness,
+            "W": width,
+            "L": length,
+            "Units": unit_label,
+            "Shape": "CUBE",
+        }
+        adjusted = {
+            "Thk": thickness + (2 * allowance) if thickness is not None else None,
+            "W": width + (2 * allowance) if width is not None else None,
+            "L": length + (2 * allowance) if length is not None else None,
+            "Units": unit_label,
+            "Shape": "CUBE",
+            "Lookup_Tbl": classification,
+        }
+        return finished, adjusted, "MILL"
+
+    diameter = _resolved_value(response.dimensions.diameter)
+    thickness = _resolved_value(response.dimensions.thickness)
+    width = _resolved_value(response.dimensions.width)
+    if thickness is not None and width is not None:
+        circumscribed = round(math.hypot(thickness, width), 4)
+        diameter = max(diameter, circumscribed) if diameter is not None else circumscribed
+    allowance = turning_allowance_in_drawing_units(
+        classification,
+        is_metric=is_metric,
+    )
+    face_allowance = lathe_face_allowance_in_drawing_units(is_metric=is_metric)
+    finished = {
+        "Dia": diameter,
+        "L": length,
+        "Units": unit_label,
+        "Shape": "CYLINDER",
+    }
+    adjusted = {
+        "Dia": diameter + (2 * allowance) if diameter is not None else None,
+        "L": length + face_allowance if length is not None else None,
+        "Units": unit_label,
+        "Shape": "CYLINDER",
+        "Lookup_Tbl": classification,
+    }
+    return finished, adjusted, "LATHE"
+
+
+def _drawing_stock_structure_problems(response: AnalysisResponse) -> list[str]:
     callout_result = response.drawing_stock_callout
-    recommendation = response.recommendation
-    if (
-        callout_result.status is not FieldStatus.RESOLVED
-        or callout_result.value is None
-        or recommendation is None
-    ):
-        return True
+    if callout_result.status is not FieldStatus.RESOLVED or callout_result.value is None:
+        return []
     callout = callout_result.value
-    expected_shape = "ROUND" if recommendation.stock_shape.upper() == "ROUND" else "FLAT"
     problems: list[str] = []
-    if callout.shape.value != expected_shape:
+    if callout.units is Units.UNKNOWN:
+        problems.append("Drawing-specified stock units are unresolved.")
+    if callout.shape is Shape.UNKNOWN:
+        problems.append("Drawing-specified stock shape is unresolved.")
+    if callout.stock_form is StockForm.UNKNOWN:
+        problems.append("Drawing-specified purchasing form is unresolved.")
+    if (
+        response.shape.status is FieldStatus.RESOLVED
+        and callout.shape.value != response.shape.value
+    ):
         problems.append("Drawing-specified stock shape differs from the calculated shape.")
 
-    adjusted = recommendation.adjusted_dimensions
+    if callout.shape is Shape.FLAT:
+        required = {
+            "thickness": callout.thickness,
+            "width": callout.width,
+            "length": callout.length,
+        }
+        if callout.stock_form not in (StockForm.BAR, StockForm.PLATE):
+            problems.append("Drawing-specified purchasing form is inconsistent with flat stock.")
+        if callout.diameter is not None:
+            problems.append("Drawing-specified flat stock also includes a diameter.")
+    elif callout.shape is Shape.ROUND:
+        required = {
+            "diameter": callout.diameter,
+            "length": callout.length,
+        }
+        if callout.stock_form not in (StockForm.BAR, StockForm.DISC):
+            problems.append("Drawing-specified purchasing form is inconsistent with round stock.")
+        if callout.thickness is not None or callout.width is not None:
+            problems.append("Drawing-specified round stock also includes flat-stock dimensions.")
+    else:
+        required = {}
+    for name, value in required.items():
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
+            problems.append(f"Drawing-specified {name} is missing or invalid.")
+    return problems
+
+
+def _record_drawing_stock_problems(response: AnalysisResponse, problems: list[str]) -> None:
+    if not problems:
+        return
+    result = response.drawing_stock_callout
+    result.status = FieldStatus.NEEDS_REVIEW
+    for problem in problems:
+        if problem not in result.reasons:
+            result.reasons.append(problem)
+        if problem not in response.validation_summary:
+            response.validation_summary.append(problem)
+        if problem not in response.warnings:
+            response.warnings.append(problem)
+
+
+def _drawing_stock_recommendation(response: AnalysisResponse) -> StockRecommendation | None:
+    callout_result = response.drawing_stock_callout
+    if callout_result.status is not FieldStatus.RESOLVED or callout_result.value is None:
+        return None
+
+    problems = _drawing_stock_structure_problems(response)
+    if problems:
+        _record_drawing_stock_problems(response, problems)
+        return None
+    if (
+        response.units.status is not FieldStatus.RESOLVED
+        or response.shape.status is not FieldStatus.RESOLVED
+        or response.material.status is not FieldStatus.RESOLVED
+        or response.material.allowance_class is None
+        or response.material.resolved_identity is None
+    ):
+        return None
+
+    callout = callout_result.value
+    finished, adjusted, process = _partial_envelopes(response)
     adjusted_units = Units.MM if "METRIC" in str(adjusted.get("Units", "")) else Units.IN
     comparisons = (
         (("diameter", "Dia"), ("length", "L"))
-        if expected_shape == "ROUND"
+        if callout.shape is Shape.ROUND
         else (("thickness", "Thk"), ("width", "W"), ("length", "L"))
     )
     for callout_name, adjusted_name in comparisons:
@@ -218,16 +361,28 @@ def _validate_drawing_stock_containment(response: AnalysisResponse) -> bool:
             problems.append(
                 f"Drawing-specified {callout_name} is smaller than the calculated minimum."
             )
-    if not problems:
-        response.validation_summary.append(
-            "Drawing-specified stock contains the calculated minimum where comparable."
-        )
-        return True
-    callout_result.status = FieldStatus.NEEDS_REVIEW
-    callout_result.reasons.extend(problems)
-    response.validation_summary.extend(problems)
-    response.warnings.extend(problems)
-    return False
+    if problems:
+        _record_drawing_stock_problems(response, problems)
+        return None
+
+    response.validation_summary.append(
+        "Drawing-specified stock contains the calculated minimum where comparable."
+    )
+    raw = recommendation_from_drawing_stock(
+        callout,
+        material_name=response.material.resolved_identity,
+        finished_dimensions=finished,
+        adjusted_dimensions=adjusted,
+        dominant_machining_process=process,
+    )
+    return clean_recommendation(raw)
+
+
+def _applicable_dimensions_complete(response: AnalysisResponse) -> bool:
+    return all(
+        result.status is FieldStatus.RESOLVED
+        for result in [*_required_dimension_results(response), response.dimensions.length]
+    )
 
 
 def build_analysis_response(
@@ -247,6 +402,20 @@ def build_analysis_response(
         response.blocked_outputs = DEPENDENT_OUTPUTS.copy()
         return response
 
+    explicit_recommendation = _drawing_stock_recommendation(response)
+    if explicit_recommendation is not None:
+        response.recommendation = explicit_recommendation
+        has_cut_outputs = explicit_recommendation.cut_length is not None
+        response.presentation_status = (
+            PresentationStatus.COMPLETE
+            if _applicable_dimensions_complete(response)
+            else PresentationStatus.PARTIAL_SUCCESS
+        )
+        response.blocked_outputs = (
+            [] if has_cut_outputs else ["cut length", "drop length", "12-foot bar yield"]
+        )
+        return response
+
     reasons = _blocked_reasons(response)
     if reasons:
         response.blocked_outputs = DEPENDENT_OUTPUTS.copy()
@@ -264,7 +433,7 @@ def build_analysis_response(
         return response
 
     response.recommendation = clean_recommendation(raw)
-    stock_callout_safe = _validate_drawing_stock_containment(response)
+    stock_callout_safe = response.drawing_stock_callout.status is FieldStatus.MISSING
     has_cut_outputs = response.recommendation.cut_length is not None
     response.presentation_status = (
         PresentationStatus.COMPLETE
