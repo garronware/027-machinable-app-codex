@@ -375,6 +375,35 @@ Week is not automatically classified as new if its behavior or data came from
   controlled paid dual-reader evaluation, an authorized judge drawing or test
   path, deployment, video, user attestations, and a real `/feedback` result.
 
+### August 20, 2026 — drawing-specified stock and focused length recovery
+
+- Classification: materially modified stock-recommendation orchestration and
+  specialized-reader recovery, with new deterministic regression coverage.
+- Previous behavior: the focused recovery call considered stock-blocking cross
+  sections but not a missing overall length. Explicit drawing stock callouts
+  were preserved as evidence and checked after generic selection, but they did
+  not populate or take precedence in the structured recommendation.
+- New behavior: missing Flat and Round length participates in the existing
+  single focused recovery call. A complete, internally consistent drawing
+  stock callout with no known containment conflict preserves its purchasing
+  form and formatted dimensions as the primary recommendation. Incomplete or
+  undersized callouts remain review evidence and do not override the unchanged
+  pair-first Flat Bar/Plate lookup.
+- Codex contribution: implemented the approved decisions in
+  `docs/stock-recommendation-decisions.md`, added offline recovery, precedence,
+  containment, fallback, Titan-400-Subplate, and result-ticket checks, and
+  preserved the current UI treatment.
+- Commit `0c5dd77` records the drawing-specified stock precedence, focused
+  length recovery, documentation, and deterministic regression coverage.
+- Verification: Ruff, ESLint, strict TypeScript, 61 deterministic offline
+  tests, the Next.js production build, and `git diff --check` passed. The local
+  ignored Titan drawing text was independently checked for the documented
+  stock callout and finished overall length. No paid model call or production
+  change was made.
+- Remaining risk: prompt-level drawing-stock extraction and focused length
+  recovery have only offline fake coverage. They still require controlled paid
+  evaluation against the same approved cases before hardening or deployment.
+
 ## Third-party, IP, and privacy safeguards
 
 - Private drawing PDFs are ignored under `part-prints/*.pdf` and must not be
