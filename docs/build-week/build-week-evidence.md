@@ -393,8 +393,9 @@ Week is not automatically classified as new if its behavior or data came from
   `docs/stock-recommendation-decisions.md`, added offline recovery, precedence,
   containment, fallback, Titan-400-Subplate, and result-ticket checks, and
   preserved the current UI treatment.
-- Commit `0c5dd77` records the drawing-specified stock precedence, focused
-  length recovery, documentation, and deterministic regression coverage.
+- Factual correction after excluding the unrelated icon commit: commit
+  `2cef709` records the drawing-specified stock precedence, focused length
+  recovery, documentation, and deterministic regression coverage.
 - Verification: Ruff, ESLint, strict TypeScript, 61 deterministic offline
   tests, the Next.js production build, and `git diff --check` passed. The local
   ignored Titan drawing text was independently checked for the documented
