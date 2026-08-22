@@ -49,9 +49,6 @@ function stockStatusMessage(analysis: AnalysisResponse, shape: Shape): string | 
   ) {
     return "Diameter could not be resolved, so stock size cannot yet be calculated.";
   }
-  if (analysis.material.status !== "RESOLVED") {
-    return "Material could not be resolved, so stock size cannot yet be calculated.";
-  }
   if (shape === "UNKNOWN") {
     return "Stock shape could not be resolved, so stock size cannot yet be calculated.";
   }

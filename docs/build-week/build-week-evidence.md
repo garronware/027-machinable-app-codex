@@ -405,6 +405,37 @@ Week is not automatically classified as new if its behavior or data came from
   recovery have only offline fake coverage. They still require controlled paid
   evaluation against the same approved cases before hardening or deployment.
 
+### August 21–22, 2026 — single-purpose bounding-dimensions challenger
+
+- Classification: materially modified Sol geometry orchestration with new
+  deterministic regression coverage; no production deployment.
+- Previous behavior: one Sol geometry call combined stock shape, bounding
+  dimensions, drawing-stock extraction, evidence, and conflict duties. Recent
+  production round-part requests returned HTTP 200 partial results without a
+  stock recommendation even though deterministic round-stock tests passed.
+- New behavior: branch `codex/simple-sol-bounds-fix` uses an independent Sol
+  call whose only task is the maximum external finished-part bounding
+  dimensions. Diameter implies Round; thickness/width imply Flat. A separate
+  stock-callout-only Sol read preserves explicit drawing stock without asking a
+  second model call to reinterpret finished geometry. Terra reads material for
+  display only. One material-independent general allowance is always used, and
+  PDF text evidence no longer deletes specialized visual dimensions.
+- Codex contribution: added the compact bounding contract and prompt, inference
+  and merge logic, model-call accounting, and focused round and Titan
+  regression tests. The separate simplified-version build spec is outside this
+  repository at
+  `/Users/garronware/dev/my-repos/029-machinable-simple-version/BUILD_SPEC.md`.
+- Commit: pending on the isolated feature branch.
+- Verification: the full offline gate passes: Ruff, frontend ESLint, strict
+  TypeScript, 66 deterministic backend tests, and the Next.js production build.
+  Focused tests prove `Dia + L` produces Round stock, unreadable material does
+  not block it, missing PDF text tokens do not delete the visual result, the
+  allowance is material-independent, and Titan-400-Subplate still produces the
+  documented Plate recommendation. No production change was made.
+- Remaining risk: the new simple Sol call has mocked offline coverage only. It
+  must be tested against the recent failing round prints on an isolated preview
+  before any production merge.
+
 ## Third-party, IP, and privacy safeguards
 
 - Private drawing PDFs are ignored under `part-prints/*.pdf` and must not be

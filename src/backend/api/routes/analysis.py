@@ -75,7 +75,21 @@ async def analyze_drawing(
             status_code=502,
             detail="The drawing readers did not return a valid interpretation.",
         ) from exc
-    return build_analysis_response(reader_batch, pdf_evidence)
+    response = build_analysis_response(reader_batch, pdf_evidence)
+    logger.info(
+        "Drawing analysis completed: presentation=%s shape=%s units=%s material=%s "
+        "diameter=%s thickness=%s width=%s length=%s recommendation=%s",
+        response.presentation_status.value,
+        response.shape.status.value,
+        response.units.status.value,
+        response.material.status.value,
+        response.dimensions.diameter.status.value,
+        response.dimensions.thickness.status.value,
+        response.dimensions.width.status.value,
+        response.dimensions.length.status.value,
+        response.recommendation is not None,
+    )
+    return response
 
 
 @router.post("/recalculate", response_model=RecalculationResponse)

@@ -11,10 +11,10 @@ from backend.domain.arbitration import (
 )
 from backend.domain.dimensions import interpretation_to_bounding_data
 from backend.domain.machining import (
-    add_machining_allowance,
+    add_general_machining_allowance,
+    general_milling_allowance_in_drawing_units,
+    general_turning_allowance_in_drawing_units,
     lathe_face_allowance_in_drawing_units,
-    milling_allowance_in_drawing_units,
-    turning_allowance_in_drawing_units,
 )
 from backend.domain.materials import resolve_material
 from backend.domain.models import (
@@ -47,16 +47,14 @@ DEPENDENT_OUTPUTS = [
     "12-foot bar yield",
 ]
 INCH_TO_MM = 25.4
+MATERIAL_NOT_READ = "Material callout not read"
 
 
 def build_recommendation(interpretation: DrawingInterpretation) -> dict:
     """Preserved deterministic shop math for one accepted interpretation."""
 
     bounding, warnings = interpretation_to_bounding_data(interpretation)
-    adjusted = add_machining_allowance(
-        bounding,
-        interpretation.material_classification.value,
-    )
+    adjusted = add_general_machining_allowance(bounding)
     result = lookup_stock_size(adjusted, interpretation.material_callout_raw or "")
     result["Part_Basics"]["Part_No"] = interpretation.part_number or ""
     result["Part_Basics"]["Part_Name"] = interpretation.part_name or ""
@@ -124,10 +122,6 @@ def _blocked_reasons(response: AnalysisResponse) -> list[str]:
         reasons.append("primary units need review")
     if response.shape.status is not FieldStatus.RESOLVED:
         reasons.append("stock shape needs review")
-    if response.material.status is not FieldStatus.RESOLVED:
-        reasons.append("material identity needs review")
-    elif response.material.allowance_class is None:
-        reasons.append("machining-allowance material class is unresolved")
     if response.shape.status is FieldStatus.RESOLVED and any(
         result.status is not FieldStatus.RESOLVED
         for result in _required_dimension_results(response)
@@ -139,16 +133,14 @@ def _blocked_reasons(response: AnalysisResponse) -> list[str]:
 def _accepted_interpretation(response: AnalysisResponse) -> DrawingInterpretation:
     assert response.units.value is not None
     assert response.shape.value is not None
-    assert response.material.resolved_identity is not None
-    assert response.material.allowance_class is not None
     return DrawingInterpretation(
         part_number=response.part_number.value,
         part_name=response.part_name.value,
         shape=Shape(response.shape.value),
         supplier_form_candidate=None,
-        material_callout_raw=response.material.resolved_identity,
+        material_callout_raw=response.material.resolved_identity or MATERIAL_NOT_READ,
         material_callout_evidence=response.material.raw_callout_evidence,
-        material_classification=response.material.allowance_class,
+        material_classification=MaterialClassification.NOT_FOUND,
         bounding=BoundingDimensions(
             units=Units(response.units.value),
             diameter=_accepted_dimension(response.dimensions.diameter),
@@ -206,21 +198,16 @@ def _partial_envelopes(
 
     assert response.units.value is not None
     assert response.shape.value is not None
-    assert response.material.allowance_class is not None
     units = Units(response.units.value)
     shape = Shape(response.shape.value)
     is_metric = units is Units.MM
     unit_label = "METRIC (MM)" if is_metric else "IMPERIAL (IN)"
-    classification = response.material.allowance_class.value
     length = _resolved_value(response.dimensions.length)
 
     if shape is Shape.FLAT:
         thickness = _resolved_value(response.dimensions.thickness)
         width = _resolved_value(response.dimensions.width)
-        allowance = milling_allowance_in_drawing_units(
-            classification,
-            is_metric=is_metric,
-        )
+        allowance = general_milling_allowance_in_drawing_units(is_metric=is_metric)
         finished = {
             "Thk": thickness,
             "W": width,
@@ -234,7 +221,7 @@ def _partial_envelopes(
             "L": length + (2 * allowance) if length is not None else None,
             "Units": unit_label,
             "Shape": "CUBE",
-            "Lookup_Tbl": classification,
+            "Lookup_Tbl": "GENERAL",
         }
         return finished, adjusted, "MILL"
 
@@ -244,10 +231,7 @@ def _partial_envelopes(
     if thickness is not None and width is not None:
         circumscribed = round(math.hypot(thickness, width), 4)
         diameter = max(diameter, circumscribed) if diameter is not None else circumscribed
-    allowance = turning_allowance_in_drawing_units(
-        classification,
-        is_metric=is_metric,
-    )
+    allowance = general_turning_allowance_in_drawing_units(is_metric=is_metric)
     face_allowance = lathe_face_allowance_in_drawing_units(is_metric=is_metric)
     finished = {
         "Dia": diameter,
@@ -260,7 +244,7 @@ def _partial_envelopes(
         "L": length + face_allowance if length is not None else None,
         "Units": unit_label,
         "Shape": "CYLINDER",
-        "Lookup_Tbl": classification,
+        "Lookup_Tbl": "GENERAL",
     }
     return finished, adjusted, "LATHE"
 
@@ -336,9 +320,6 @@ def _drawing_stock_recommendation(response: AnalysisResponse) -> StockRecommenda
     if (
         response.units.status is not FieldStatus.RESOLVED
         or response.shape.status is not FieldStatus.RESOLVED
-        or response.material.status is not FieldStatus.RESOLVED
-        or response.material.allowance_class is None
-        or response.material.resolved_identity is None
     ):
         return None
 
@@ -370,7 +351,7 @@ def _drawing_stock_recommendation(response: AnalysisResponse) -> StockRecommenda
     )
     raw = recommendation_from_drawing_stock(
         callout,
-        material_name=response.material.resolved_identity,
+        material_name=response.material.resolved_identity or MATERIAL_NOT_READ,
         finished_dimensions=finished,
         adjusted_dimensions=adjusted,
         dominant_machining_process=process,
@@ -396,7 +377,7 @@ def build_analysis_response(
     else:
         response = arbitrate_reader_batch(batch)
         response.material = resolve_material(response.material, response.shape)
-    if pdf_evidence is not None:
+    if pdf_evidence is not None and not isinstance(batch, SpecializedReaderBatch):
         validate_response_against_pdf(response, pdf_evidence)
     if response.presentation_status is PresentationStatus.UNSUPPORTED:
         response.blocked_outputs = DEPENDENT_OUTPUTS.copy()
@@ -470,8 +451,6 @@ def recalculate_from_confirmed_facts(
         raise ValueError("Primary units must be confirmed before recalculation.")
     if request.shape is Shape.UNKNOWN:
         raise ValueError("Stock shape must be confirmed before recalculation.")
-    if request.allowance_class is MaterialClassification.NOT_FOUND:
-        raise ValueError("Material class must be confirmed before recalculation.")
     interpretation = DrawingInterpretation(
         part_number=request.part_number,
         part_name=request.part_name,
@@ -479,7 +458,7 @@ def recalculate_from_confirmed_facts(
         supplier_form_candidate=None,
         material_callout_raw=request.material_callout_raw,
         material_callout_evidence=["User-confirmed for recalculation"],
-        material_classification=request.allowance_class,
+        material_classification=MaterialClassification.NOT_FOUND,
         bounding=BoundingDimensions(
             units=request.units,
             diameter=_confirmed_dimension(request.dimensions.diameter),

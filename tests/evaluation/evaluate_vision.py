@@ -84,7 +84,6 @@ def compare_title_block(
         "expected_material": case.material,
         "actual_material_callout_raw": interpretation.material_callout_raw,
         "actual_material_name": interpretation.material_name,
-        "actual_material_classification": interpretation.material_classification.value,
         "material_callout_evidence": interpretation.material_callout_evidence,
         "warnings": interpretation.warnings,
     }
@@ -192,9 +191,9 @@ async def run(args: argparse.Namespace) -> int:
         print(f"evaluate {case.filename}")
         try:
             pdf_bytes = path.read_bytes()
-            paid_model_calls_attempted += 2
+            paid_model_calls_attempted += 3
             batch = await client.interpret_pdf(pdf_bytes, case.filename)
-            paid_model_calls_attempted += max(batch.model_calls_attempted - 2, 0)
+            paid_model_calls_attempted += max(batch.model_calls_attempted - 3, 0)
             analysis = build_analysis_response(
                 batch,
                 extract_pdf_evidence(pdf_bytes),
@@ -203,7 +202,7 @@ async def run(args: argparse.Namespace) -> int:
                 case,
                 batch,
                 title_model=client.title_reader.model,
-                geometry_model=client.geometry_reader.model,
+                geometry_model=client.bounds_reader.model,
             )
             reports.append(
                 {
@@ -290,14 +289,18 @@ async def run(args: argparse.Namespace) -> int:
         "models": [settings.openai_sol_model, settings.openai_terra_model],
         "model_roles": {
             "material": settings.openai_terra_model,
-            "shape_geometry": settings.openai_sol_model,
+            "bounding_dimensions": settings.openai_sol_model,
+            "drawing_stock": settings.openai_sol_model,
             "conditional_dimension_recovery": settings.openai_sol_model,
         },
         "reasoning_effort": settings.openai_reasoning_effort,
         "prompt_sha256": {
             "material": hashlib.sha256(client.title_reader.prompt.encode("utf-8")).hexdigest(),
-            "shape_geometry": hashlib.sha256(
-                client.geometry_reader.prompt.encode("utf-8")
+            "bounding_dimensions": hashlib.sha256(
+                client.bounds_reader.prompt.encode("utf-8")
+            ).hexdigest(),
+            "drawing_stock": hashlib.sha256(
+                client.stock_reader.prompt.encode("utf-8")
             ).hexdigest(),
             "dimension_recovery": hashlib.sha256(
                 client.recovery_reader.prompt.encode("utf-8")
@@ -305,8 +308,11 @@ async def run(args: argparse.Namespace) -> int:
         },
         "task_prompt_sha256": {
             "material": hashlib.sha256(client.title_reader.task.encode("utf-8")).hexdigest(),
-            "shape_geometry": hashlib.sha256(
-                client.geometry_reader.task.encode("utf-8")
+            "bounding_dimensions": hashlib.sha256(
+                client.bounds_reader.task.encode("utf-8")
+            ).hexdigest(),
+            "drawing_stock": hashlib.sha256(
+                client.stock_reader.task.encode("utf-8")
             ).hexdigest(),
         },
         "truth_source": "part-prints/print-index.md (read live for this run)",

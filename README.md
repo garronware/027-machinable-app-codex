@@ -17,21 +17,27 @@ is ordered or cut.
 
 ## Target workflow
 
-- GPT-5.6 Sol High reads stock shape and applicable bounding dimensions.
-- GPT-5.6 Terra High reads material purchasing facts only.
+- One single-purpose GPT-5.6 Sol High call returns only the maximum external
+  finished-part bounding dimensions.
+- Round versus prismatic stock is inferred from the applicable dimension set:
+  diameter for round, or thickness and width for prismatic.
+- The bounding read must choose inches or millimeters so missing unit metadata
+  does not become an administrative blocker.
+- A separate Sol read preserves explicit drawing-specified stock callouts.
+- GPT-5.6 Terra High reads the material callout for display only; material does
+  not select the allowance or block a stock recommendation.
 - If Sol misses a stock-blocking cross-section dimension or overall length, one
   conditional Sol call reviews focused high-resolution crops around the
   candidate callouts.
-- PDF text and page coordinates provide an additional textual witness.
+- PDF text and page coordinates support focused recovery but do not delete a
+  dimension returned by the single-purpose visual read.
 - Part identity is non-gating and is not requested from either model.
 - Units, material, shape, dimensions, and drawing-specified stock callouts
   resolve independently.
 - A dimension failure does not hide resolved material or shape.
-- Detailed material resolution produces supplier-facing language while
-  retaining the exact drawing callout and qualified uncertainty.
-- Deterministic Python applies machining allowance, selects local standard
-  stock, and calculates cut length, drop length, and yield when dependencies are
-  resolved.
+- Deterministic Python applies one material-independent general allowance,
+  selects local standard stock, and calculates cut length, drop length, and
+  yield when dimensions and units are resolved.
 - A complete, safe drawing-specified stock size takes precedence over the
   generic catalog result while remaining separate from finished dimensions.
 - The production frontend is a desktop-first Next.js application with PDF
@@ -46,13 +52,14 @@ MVP.
 The repository currently has:
 
 - a FastAPI backend;
-- focused GPT-5.6 Sol High geometry and Terra High material reads;
+- a single-purpose GPT-5.6 Sol High bounding-dimensions read, a separate Sol
+  drawing-stock read, and a Terra High material read;
 - conditional high-resolution Sol recovery for missing stock cross-sections or
   overall length;
 - field-level arbitration and HTTP 200 partial-success responses;
-- deterministic PDF text tokens, page coordinates, and claim checks;
-- conservative material and supplier-language resolution;
-- deterministic machining and stock calculations;
+- deterministic PDF text tokens and page coordinates for focused recovery;
+- display-only material extraction with a neutral unreadable-material fallback;
+- deterministic stock calculations using one general allowance;
 - a typed correction/recalculation endpoint that does not rerun model calls;
 - a desktop-first Next.js review UI with PDF preview, field-level status,
   correction, recalculation, and expandable evidence;
@@ -108,7 +115,7 @@ make eval-help
 uv run python -m tests.evaluation.evaluate_vision --limit 3
 ```
 
-Each part normally makes two paid calls. A third Sol call is made only when a
+Each part normally makes three paid calls. A fourth Sol call is made only when a
 stock-blocking cross-section dimension or overall length is missing. Use
 `--all` only after approving the exact paid-call plan.
 

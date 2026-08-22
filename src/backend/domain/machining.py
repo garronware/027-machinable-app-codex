@@ -36,6 +36,8 @@ TURNING_ALLOWANCES_INCH = {
 
 INCH_TO_MM = 25.4
 LATHE_FACE_ALLOW_INCH = 0.125
+GENERAL_MILLING_ALLOWANCE_INCH = 0.045
+GENERAL_TURNING_ALLOWANCE_INCH = 0.050
 
 
 def _allowance_in_drawing_units(
@@ -82,6 +84,70 @@ def lathe_face_allowance_in_drawing_units(*, is_metric: bool) -> float:
     """Return the existing total face allowance in the drawing's units."""
 
     return LATHE_FACE_ALLOW_INCH * INCH_TO_MM if is_metric else LATHE_FACE_ALLOW_INCH
+
+
+def general_milling_allowance_in_drawing_units(*, is_metric: bool) -> float:
+    """Return the one material-independent per-side milling allowance."""
+
+    return (
+        GENERAL_MILLING_ALLOWANCE_INCH * INCH_TO_MM
+        if is_metric
+        else GENERAL_MILLING_ALLOWANCE_INCH
+    )
+
+
+def general_turning_allowance_in_drawing_units(*, is_metric: bool) -> float:
+    """Return the one material-independent radial turning allowance."""
+
+    return (
+        GENERAL_TURNING_ALLOWANCE_INCH * INCH_TO_MM
+        if is_metric
+        else GENERAL_TURNING_ALLOWANCE_INCH
+    )
+
+
+def add_general_machining_allowance(data: dict) -> dict:
+    """Add one fixed shop allowance without inspecting the material."""
+
+    units = data.get("Metric_or_Imperial", "")
+    is_metric = "METRIC" in units.upper()
+    result = dict(data)
+
+    if "Bounding_Cube" in data:
+        allowance = general_milling_allowance_in_drawing_units(is_metric=is_metric)
+        cube = data["Bounding_Cube"]
+        length = cube.get("L")
+        result["Bndng_Plus_Mach_Stock"] = {
+            "Thk": cube["Thk"] + (2 * allowance),
+            "W": cube["W"] + (2 * allowance),
+            "L": length + (2 * allowance) if isinstance(length, (int, float)) else None,
+            "Units": units,
+            "Shape": "CUBE",
+            "Lookup_Tbl": "GENERAL",
+            "Dominant_Machining_Process": "MILL",
+            "Stock_Shape": "FLAT",
+            "Stock_Form": "BAR/PLATE",
+        }
+        return result
+
+    if "Bounding_Cyl" in data:
+        allowance = general_turning_allowance_in_drawing_units(is_metric=is_metric)
+        face_allowance = lathe_face_allowance_in_drawing_units(is_metric=is_metric)
+        cylinder = data["Bounding_Cyl"]
+        length = cylinder.get("L")
+        result["Bndng_Plus_Mach_Stock"] = {
+            "Dia": cylinder["Dia"] + (2 * allowance),
+            "L": length + face_allowance if isinstance(length, (int, float)) else None,
+            "Units": units,
+            "Shape": "CYLINDER",
+            "Lookup_Tbl": "GENERAL",
+            "Dominant_Machining_Process": "LATHE",
+            "Stock_Shape": "ROUND",
+            "Stock_Form": "BAR/DISC",
+        }
+        return result
+
+    raise ValueError("No validated bounding volume is available.")
 
 
 def add_machining_allowance(data: dict, material_classification: str) -> dict:

@@ -3,22 +3,26 @@
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
 from backend.clients.openai_vision import OpenAISpecializedReaderClient
 from backend.domain.models import (
     BoundingDimensions,
+    BoundingEnvelopeInterpretation,
     DimensionAxis,
     DimensionEvidence,
     DimensionRecoveryInterpretation,
     DimensionSource,
+    DrawingStockCallout,
+    DrawingStockInterpretation,
     GeometryInterpretation,
-    MaterialClassification,
     RecoveredDimension,
     Shape,
+    StockForm,
     TitleBlockInterpretation,
     Units,
 )
-from backend.domain.pdf_evidence import PdfRegionCrop
+from backend.domain.pdf_evidence import PdfEvidence, PdfPageEvidence, PdfRegionCrop, PdfToken
 from backend.domain.pipeline import build_analysis_response
 from tests.evaluation.evaluate_vision import build_reader_reports
 from tests.evaluation.print_index import TruthCase
@@ -42,7 +46,6 @@ def _title() -> TitleBlockInterpretation:
         material_callout_raw="A2 Tool Steel",
         material_callout_evidence=["Title block material field"],
         material_name="A2 Tool Steel",
-        material_classification=MaterialClassification.TOOL_STEEL,
         warnings=[],
     )
 
@@ -66,13 +69,46 @@ def _geometry() -> GeometryInterpretation:
     )
 
 
-def test_geometry_prompt_requests_structured_drawing_stock_without_mixing_envelopes():
+def _bounds_from_geometry(geometry: GeometryInterpretation) -> BoundingEnvelopeInterpretation:
+    return BoundingEnvelopeInterpretation(
+        units=geometry.bounding.units,
+        diameter=geometry.bounding.diameter.value,
+        thickness=geometry.bounding.thickness.value,
+        width=geometry.bounding.width.value,
+        length=geometry.bounding.length.value,
+    )
+
+
+def _stock_from_geometry(geometry: GeometryInterpretation) -> DrawingStockInterpretation:
+    return DrawingStockInterpretation(
+        drawing_stock_callout=geometry.drawing_stock_callout,
+    )
+
+
+def test_independent_prompts_keep_bounds_and_drawing_stock_separate():
     client = OpenAISpecializedReaderClient(api_key="test-key")
 
-    assert "drawing-specified stock callout" in client.geometry_reader.task
-    assert "purchasing form" in client.geometry_reader.prompt
-    assert all(form in client.geometry_reader.prompt for form in ("`BAR`", "`PLATE`", "`DISC`"))
-    assert "Do not copy those raw-stock values" in client.geometry_reader.prompt
+    assert client.bounds_reader.task == (
+        "Return the maximum external finished-part bounding dimensions of this part."
+    )
+    assert "maximum external finished-part bounding dimensions" in client.bounds_reader.prompt
+    assert "drawing-specified stock" not in client.bounds_reader.prompt
+    assert "drawing-specified stock" in client.stock_reader.task
+    assert "purchasing form" in client.stock_reader.prompt
+    assert all(form in client.stock_reader.prompt for form in ("`BAR`", "`PLATE`", "`DISC`"))
+    assert "finished-part dimensions" in client.stock_reader.prompt
+    assert "Classify the material" not in client.title_reader.prompt
+
+
+def test_simple_bounds_must_choose_inches_or_millimeters():
+    with pytest.raises(ValidationError):
+        BoundingEnvelopeInterpretation(
+            units=Units.UNKNOWN,
+            diameter=1.0,
+            thickness=None,
+            width=None,
+            length=2.0,
+        )
 
 
 @pytest.mark.asyncio
@@ -94,7 +130,7 @@ async def test_material_call_uses_terra_focused_contract_and_high_detail_pdf():
     assert captured["reasoning"] == {"effort": "high"}
     assert captured["store"] is False
     assert captured["text_format"] is TitleBlockInterpretation
-    assert "material purchasing facts" in captured["input"][1]["content"][1]["text"]
+    assert "material callout for display" in captured["input"][1]["content"][1]["text"]
 
     system_prompt = captured["input"][0]["content"][0]["text"]
     assert system_prompt == client.title_reader.prompt
@@ -123,7 +159,8 @@ async def test_specialized_client_preserves_non_overlapping_results():
 
     client = OpenAISpecializedReaderClient(api_key="test-key")
     client.title_reader = FakeReader("gpt-5.6-terra", _title())
-    client.geometry_reader = FakeReader("gpt-5.6-sol", _geometry())
+    client.stock_reader = FakeReader("gpt-5.6-sol", _stock_from_geometry(_geometry()))
+    client.bounds_reader = FakeReader("gpt-5.6-sol", _bounds_from_geometry(_geometry()))
 
     batch = await client.interpret_pdf(b"%PDF-1.7\n", "drawing.pdf")
 
@@ -163,6 +200,161 @@ async def test_specialized_client_preserves_non_overlapping_results():
     assert {dimension["bucket"] for dimension in reports[1]["comparison"]["dimensions"]} == {
         "MATCH"
     }
+
+
+@pytest.mark.asyncio
+async def test_single_purpose_bounds_are_authoritative_and_infer_round():
+    class FakeReader:
+        def __init__(self, model: str, result):
+            self.model = model
+            self.result = result
+
+        async def interpret_pdf(self, pdf_bytes: bytes, filename: str):
+            return self.result
+
+    simple_bounds = BoundingEnvelopeInterpretation(
+        units=Units.IN,
+        diameter=2.5,
+        thickness=None,
+        width=None,
+        length=6.0,
+    )
+
+    client = OpenAISpecializedReaderClient(api_key="test-key")
+    client.title_reader = FakeReader("gpt-5.6-terra", _title())
+    client.stock_reader = FakeReader(
+        "gpt-5.6-sol", DrawingStockInterpretation(drawing_stock_callout=None)
+    )
+    client.bounds_reader = FakeReader("gpt-5.6-sol", simple_bounds)
+
+    batch = await client.interpret_pdf(b"%PDF-1.7\n", "drawing.pdf")
+    unrelated_pdf_text = PdfEvidence(
+        pages=(
+            PdfPageEvidence(
+                page_number=1,
+                width=100,
+                height=100,
+                text="UNRELATED 99.0",
+                tokens=(
+                    PdfToken(
+                        raw_text="99.0",
+                        normalized_text="99.0",
+                        page_number=1,
+                        x0=0,
+                        y0=0,
+                        x1=1,
+                        y1=1,
+                    ),
+                ),
+            ),
+        )
+    )
+    response = build_analysis_response(batch, unrelated_pdf_text)
+
+    assert batch.geometry is not None
+    assert batch.geometry.interpretation.shape is Shape.ROUND
+    assert batch.geometry.interpretation.bounding.diameter.value == 2.5
+    assert batch.geometry.interpretation.bounding.length.value == 6.0
+    assert response.recommendation is not None
+    assert response.recommendation.stock_shape == "Round"
+    assert response.recommendation.stock_diameter is not None
+
+
+@pytest.mark.asyncio
+async def test_material_failure_does_not_block_round_stock_recommendation():
+    class FakeReader:
+        def __init__(self, model: str, result):
+            self.model = model
+            self.result = result
+
+        async def interpret_pdf(self, pdf_bytes: bytes, filename: str):
+            return self.result
+
+    class FailingReader:
+        model = "gpt-5.6-terra"
+
+        async def interpret_pdf(self, pdf_bytes: bytes, filename: str):
+            raise RuntimeError("material callout unreadable")
+
+    client = OpenAISpecializedReaderClient(api_key="test-key")
+    client.title_reader = FailingReader()
+    client.stock_reader = FakeReader(
+        "gpt-5.6-sol", DrawingStockInterpretation(drawing_stock_callout=None)
+    )
+    client.bounds_reader = FakeReader(
+        "gpt-5.6-sol",
+        BoundingEnvelopeInterpretation(
+            units=Units.IN,
+            diameter=1.0,
+            thickness=None,
+            width=None,
+            length=3.0,
+        ),
+    )
+
+    response = build_analysis_response(
+        await client.interpret_pdf(b"%PDF-1.7\n", "round-part.pdf")
+    )
+
+    assert response.material.status.value == "MISSING"
+    assert response.recommendation is not None
+    assert response.recommendation.material_name == "Material callout not read"
+    assert response.recommendation.stock_diameter is not None
+
+
+@pytest.mark.asyncio
+async def test_single_purpose_bounds_preserve_titan_plate_callout():
+    class FakeReader:
+        def __init__(self, model: str, result):
+            self.model = model
+            self.result = result
+
+        async def interpret_pdf(self, pdf_bytes: bytes, filename: str):
+            return self.result
+
+    geometry = GeometryInterpretation(
+        shape=Shape.FLAT,
+        bounding=BoundingDimensions(
+            units=Units.IN,
+            diameter=_dimension(None),
+            thickness=_dimension(1.0),
+            width=_dimension(9.0),
+            length=_dimension(18.5),
+        ),
+        drawing_stock_callout=DrawingStockCallout(
+            raw_callout='STOCK SIZE: 1.5" X 9.25" X 18.9" PLATE',
+            shape=Shape.FLAT,
+            stock_form=StockForm.PLATE,
+            units=Units.IN,
+            diameter=None,
+            thickness=1.5,
+            width=9.25,
+            length=18.9,
+            evidence="Drawing stock note.",
+        ),
+        projection="THIRD_ANGLE",
+        identified_views=["FRONT", "TOP"],
+        warnings=[],
+        conflicts=[],
+        unsupported_reason=None,
+    )
+    simple_bounds = _bounds_from_geometry(geometry)
+
+    client = OpenAISpecializedReaderClient(api_key="test-key")
+    client.title_reader = FakeReader("gpt-5.6-terra", _title())
+    client.stock_reader = FakeReader("gpt-5.6-sol", _stock_from_geometry(geometry))
+    client.bounds_reader = FakeReader("gpt-5.6-sol", simple_bounds)
+
+    batch = await client.interpret_pdf(b"%PDF-1.7\n", "Titan-400-Subplate.pdf")
+    response = build_analysis_response(batch)
+
+    assert batch.geometry is not None
+    assert batch.geometry.interpretation.drawing_stock_callout is not None
+    assert response.recommendation is not None
+    assert response.recommendation.stock_form == "Plate"
+    assert response.recommendation.stock_thickness == "1-1/2 in"
+    assert response.recommendation.stock_width == "9-1/4 in"
+    assert response.recommendation.stock_length == "18.9 in"
 
 
 @pytest.mark.asyncio
@@ -226,12 +418,13 @@ async def test_missing_flat_thickness_triggers_focused_crop_recovery(monkeypatch
     )
     client = OpenAISpecializedReaderClient(api_key="test-key")
     client.title_reader = FakeReader("gpt-5.6-terra", _title())
-    client.geometry_reader = FakeReader("gpt-5.6-sol", geometry)
+    client.stock_reader = FakeReader("gpt-5.6-sol", _stock_from_geometry(geometry))
+    client.bounds_reader = FakeReader("gpt-5.6-sol", _bounds_from_geometry(geometry))
     client.recovery_reader = FakeRecoveryReader()
 
     batch = await client.interpret_pdf(b"%PDF-1.7\n", "drawing.pdf")
 
-    assert batch.model_calls_attempted == 3
+    assert batch.model_calls_attempted == 4
     assert batch.geometry is not None
     assert batch.geometry.recovered_axes == [DimensionAxis.THICKNESS]
     recovered = batch.geometry.interpretation.bounding.thickness
@@ -312,14 +505,15 @@ async def test_missing_flat_or_round_length_triggers_one_focused_attempt(
     )
     client = OpenAISpecializedReaderClient(api_key="test-key")
     client.title_reader = FakeReader("gpt-5.6-terra", _title())
-    client.geometry_reader = FakeReader("gpt-5.6-sol", geometry)
+    client.stock_reader = FakeReader("gpt-5.6-sol", _stock_from_geometry(geometry))
+    client.bounds_reader = FakeReader("gpt-5.6-sol", _bounds_from_geometry(geometry))
     recovery_reader = FakeRecoveryReader()
     client.recovery_reader = recovery_reader
 
     batch = await client.interpret_pdf(b"%PDF-1.7\n", "drawing.pdf")
     response = build_analysis_response(batch)
 
-    assert batch.model_calls_attempted == 3
+    assert batch.model_calls_attempted == 4
     assert recovery_reader.calls == 1
     assert batch.geometry is not None
     assert batch.geometry.recovered_axes == []
@@ -385,7 +579,8 @@ async def test_successful_length_recovery_unlocks_only_length_outputs(monkeypatc
     )
     client = OpenAISpecializedReaderClient(api_key="test-key")
     client.title_reader = FakeReader("gpt-5.6-terra", _title())
-    client.geometry_reader = FakeReader("gpt-5.6-sol", geometry)
+    client.stock_reader = FakeReader("gpt-5.6-sol", _stock_from_geometry(geometry))
+    client.bounds_reader = FakeReader("gpt-5.6-sol", _bounds_from_geometry(geometry))
     client.recovery_reader = FakeRecoveryReader()
 
     batch = await client.interpret_pdf(b"%PDF-1.7\n", "drawing.pdf")
@@ -396,8 +591,8 @@ async def test_successful_length_recovery_unlocks_only_length_outputs(monkeypatc
     assert batch.geometry.interpretation.bounding.thickness.value == 0.5
     assert batch.geometry.interpretation.bounding.width.value == 1.5
     assert response.recommendation is not None
-    assert response.recommendation.cut_length == "10.15 in"
-    assert response.recommendation.stock_thickness == "3/4 in"
+    assert response.recommendation.cut_length == "10.09 in"
+    assert response.recommendation.stock_thickness == "5/8 in"
     assert response.recommendation.stock_width == "2 in"
     assert response.blocked_outputs == []
 
@@ -427,7 +622,8 @@ async def test_failed_length_recovery_preserves_partial_stock_without_ui_error(m
     )
     client = OpenAISpecializedReaderClient(api_key="test-key")
     client.title_reader = FakeReader("gpt-5.6-terra", _title())
-    client.geometry_reader = FakeReader("gpt-5.6-sol", geometry)
+    client.stock_reader = FakeReader("gpt-5.6-sol", _stock_from_geometry(geometry))
+    client.bounds_reader = FakeReader("gpt-5.6-sol", _bounds_from_geometry(geometry))
     client.recovery_reader = FailingRecoveryReader()
 
     batch = await client.interpret_pdf(b"%PDF-1.7\n", "drawing.pdf")

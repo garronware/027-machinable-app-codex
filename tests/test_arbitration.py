@@ -111,11 +111,10 @@ def test_specialized_read_releases_shape_driven_stock_without_dual_agreement():
         title=TitleBlockReaderResult(
             reader_model="gpt-5.6-terra",
             interpretation=TitleBlockInterpretation(
-                material_callout_raw="6061-T6 Aluminum",
-                material_callout_evidence=["Title block MATERIAL field"],
-                material_name="6061-T6 Aluminum",
-                material_classification=MaterialClassification.ALUMINUM,
-                warnings=[],
+                    material_callout_raw="6061-T6 Aluminum",
+                    material_callout_evidence=["Title block MATERIAL field"],
+                    material_name="6061-T6 Aluminum",
+                    warnings=[],
             ),
         ),
         geometry=GeometryReaderResult(
@@ -158,11 +157,10 @@ def test_equivalent_dual_unit_note_is_not_user_facing():
         title=TitleBlockReaderResult(
             reader_model="gpt-5.6-terra",
             interpretation=TitleBlockInterpretation(
-                material_callout_raw="6061-T6 Aluminum",
-                material_callout_evidence=["Title block MATERIAL field"],
-                material_name="6061-T6 Aluminum",
-                material_classification=MaterialClassification.ALUMINUM,
-                warnings=[],
+                    material_callout_raw="6061-T6 Aluminum",
+                    material_callout_evidence=["Title block MATERIAL field"],
+                    material_name="6061-T6 Aluminum",
+                    warnings=[],
             ),
         ),
         geometry=GeometryReaderResult(
@@ -282,11 +280,10 @@ def _titan_specialized_batch(*, width: float | None = 9.0) -> SpecializedReaderB
         title=TitleBlockReaderResult(
             reader_model="gpt-5.6-terra",
             interpretation=TitleBlockInterpretation(
-                material_callout_raw="6061-T6 ALUM",
-                material_callout_evidence=["Title block MATERIAL field"],
-                material_name="6061-T6 Aluminum",
-                material_classification=MaterialClassification.ALUMINUM,
-                warnings=[],
+                    material_callout_raw="6061-T6 ALUM",
+                    material_callout_evidence=["Title block MATERIAL field"],
+                    material_name="6061-T6 Aluminum",
+                    warnings=[],
             ),
         ),
         geometry=GeometryReaderResult(
@@ -339,7 +336,7 @@ def test_titan_drawing_stock_plate_precedes_generic_flat_bar_lookup():
     assert response.recommendation.stock_length == "18.9 in"
     assert response.recommendation.stock_note == "Stock size is specified on the drawing."
     assert response.recommendation.finished_dimensions["L"] == 18.8
-    assert response.recommendation.cut_length == "18.83 in"
+    assert response.recommendation.cut_length == "18.89 in"
     assert generic_response.recommendation is not None
     assert generic_response.recommendation.stock_form == "Bar"
 

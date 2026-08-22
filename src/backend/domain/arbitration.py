@@ -545,23 +545,21 @@ def response_from_specialized_read(batch: SpecializedReaderBatch) -> AnalysisRes
     else:
         title = batch.title.interpretation
         material_value = title.material_name or title.material_callout_raw
-        material_resolved = bool(
-            material_value and title.material_classification is not MaterialClassification.NOT_FOUND
-        )
+        material_resolved = bool(material_value)
         material = MaterialResult(
             status=FieldStatus.RESOLVED if material_resolved else FieldStatus.MISSING,
             raw_callout=title.material_callout_raw,
             raw_callout_evidence=title.material_callout_evidence,
             canonical_grade=None,
             standard_system=None,
-            material_family=(title.material_classification.value if material_resolved else None),
+            material_family=None,
             temper_or_condition=None,
             specification=None,
             resolved_identity=material_value if material_resolved else None,
             supplier_description=material_value if material_resolved else None,
             supplier_search_terms={},
-            allowance_class=(title.material_classification if material_resolved else None),
-            resolution_basis="Focused Terra material read.",
+            allowance_class=None,
+            resolution_basis="Focused Terra display-only material read.",
             resolution_confidence="HIGH" if material_resolved else "UNKNOWN",
             ambiguities=[],
             temper_source=None,
@@ -571,7 +569,7 @@ def response_from_specialized_read(batch: SpecializedReaderBatch) -> AnalysisRes
                 MaterialCandidate(
                     reader_model=batch.title.reader_model,
                     raw_callout=title.material_callout_raw,
-                    allowance_class=title.material_classification,
+                    allowance_class=None,
                     evidence=title.material_callout_evidence,
                 )
             ],

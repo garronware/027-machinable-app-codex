@@ -247,6 +247,8 @@ def _custom_length(required_length_in: float | None, bar: dict) -> float | None:
 
 def _availability_note(stock: dict, material_name: str, catalog: dict) -> str | None:
     material_family = str(stock.get("Lookup_Tbl", "")).upper()
+    if material_family == "GENERAL":
+        return None
     if material_family in catalog["supported_material_families"]:
         return None
     return f"Availability not covered for {material_name}."

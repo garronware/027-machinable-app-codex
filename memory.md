@@ -12,21 +12,28 @@
 - `README.md` is the current judge-facing setup, testing, limitation, and Codex
   collaboration guide.
 - The product is a desktop-first Next.js web application backed by FastAPI.
-- GPT-5.6 Sol High reads stock shape and applicable bounding dimensions; Terra
-  High reads material purchasing facts only.
+- A single-purpose GPT-5.6 Sol High call reads only the maximum external
+  finished-part bounding dimensions. The application infers Round versus Flat
+  from the applicable returned dimension set.
+- The bounding contract requires a best-fit choice of inches or millimeters;
+  `UNKNOWN` is not accepted from that focused read.
+- A separate Sol read preserves explicit drawing-stock callouts; Terra High
+  reads the material callout for display only.
 - Part identity is deliberately non-gating and is not requested from either
   model.
 - When Sol misses a stock-blocking cross-section dimension or overall length,
   one conditional Sol call reviews deterministic high-resolution crops around
   candidate callouts.
-- PDF text tokens and page coordinates provide additional evidence.
+- PDF text tokens and page coordinates support focused recovery. The
+  single-purpose model dimensions are not deleted for lacking a text token.
 - Results are field-level: units, material, shape, dimensions, and explicit
   drawing stock callouts resolve independently.
 - Unresolved dimensions must not hide resolved material or shape.
-- Detailed material resolution preserves the raw callout, grade, standard,
-  condition, supplier language, confidence, and allowance class.
-- Deterministic Python remains responsible for allowance, conversion, stock
-  selection, cut/drop length, kerf, end trim, and yield.
+- Material never selects the machining allowance and never blocks a stock
+  recommendation. An unreadable callout is displayed neutrally.
+- Deterministic Python applies one general material-independent allowance and
+  remains responsible for conversion, stock selection, cut/drop length, kerf,
+  end trim, and yield.
 - `part-prints/print-index.md` is the sole dimensional evaluation truth and is
   never used at runtime.
 - Werk24, Anthropic, and Claude must remain absent from the runtime.
@@ -34,8 +41,9 @@
 ## Current implementation
 
 - FastAPI accepts digitally generated PDFs.
-- GPT-5.6 Sol High geometry and Terra High material reads run concurrently with
-  separate, short contracts.
+- A single-purpose Sol bounding read, separate Sol drawing-stock read, and Terra
+  material read run concurrently. The simple bounds are authoritative when
+  they form one unambiguous round or prismatic envelope.
 - Missing stock cross-sections or overall length trigger at most one focused Sol
   recovery call; accepted dimensions are never overwritten by recovery.
 - PDF text tokens, page coordinates, numeric witnesses, and page/region
@@ -44,9 +52,8 @@
   independently.
 - Missing or disputed facts return HTTP 200 partial success and block only
   dependent calculations.
-- Common explicit material grades resolve deterministically into identity,
-  purchasing language, and allowance class. Proprietary numeric material codes
-  remain visible but unresolved without an authoritative mapping.
+- Material is display-only. The stock calculation proceeds with one general
+  allowance when the material callout is missing or unreadable.
 - Deterministic machining and stock calculations are implemented.
 - Drawing-specified stock is preserved separately and checked against the
   calculated minimum.
@@ -89,12 +96,12 @@
 
 ## Next work
 
-1. Run a controlled paid 201533-020 test of the focused geometry prompt and
-   conditional crop recovery.
-2. If the thickness is stable across repeated runs, rerun the same versioned
-   10-print set to check for shape or dimension regressions.
-3. Report every geometry result, recovery call, material result, latency, and
-   cost before further hardening.
+1. Run controlled paid tests of the single-purpose Sol bounding prompt on the
+   recent failing round prints.
+2. Compare the same prompt and response fields with Gemini 3.1 Pro in the
+   separate simplified-version project.
+3. Rerun the same versioned print set before selecting a primary provider or
+   changing production.
 
 ## Implemented stock-recommendation follow-up
 
@@ -112,7 +119,7 @@
 
 ## Verification and known baseline issues
 
-- The repository has 61 deterministic offline backend tests passing, and the
+- The repository has 66 deterministic offline backend tests passing, and the
   Next.js production build, lint, and strict TypeScript checks pass.
 - Backend packaging and Uvicorn startup were verified.
 - The controlled 10-print specialized-reader evaluation ran on 2026-07-26; the
@@ -120,6 +127,6 @@
 - The Next.js dependency tree currently reports two moderate npm audit findings;
   no forced breaking upgrade has been applied.
 - This directory is an independent Git repository for project 027.
-- `origin/main` is locally aligned with commit `976c0d5` at the configured
+- `origin/main` is locally aligned with commit `0080043` at the configured
   GitHub URL; unauthenticated judge access and the repository license remain
   unverified.

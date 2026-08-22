@@ -12,10 +12,13 @@ from pydantic import BaseModel
 
 from backend.core.config import ReasoningEffort
 from backend.domain.models import (
+    BoundingDimensions,
+    BoundingEnvelopeInterpretation,
     DimensionAxis,
     DimensionEvidence,
     DimensionRecoveryInterpretation,
     DimensionSource,
+    DrawingStockInterpretation,
     GeometryInterpretation,
     GeometryReaderResult,
     ReaderFailure,
@@ -32,15 +35,84 @@ from backend.domain.pdf_evidence import (
 
 PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompts"
 TITLE_PROMPT_PATH = PROMPT_DIR / "title_material.md"
-GEOMETRY_PROMPT_PATH = PROMPT_DIR / "shape_geometry.md"
+STOCK_PROMPT_PATH = PROMPT_DIR / "drawing_stock.md"
+BOUNDS_PROMPT_PATH = PROMPT_DIR / "bounding_dimensions.md"
 RECOVERY_PROMPT_PATH = PROMPT_DIR / "dimension_recovery.md"
 ParsedModel = TypeVar("ParsedModel", bound=BaseModel)
 
-TITLE_TASK = "Return only the drawing's material purchasing facts."
-GEOMETRY_TASK = (
-    "Return only stock shape, applicable finished bounding dimensions, and any explicit "
-    "drawing-specified stock callout."
-)
+TITLE_TASK = "Return the drawing's material callout for display."
+BOUNDS_TASK = "Return the maximum external finished-part bounding dimensions of this part."
+STOCK_TASK = "Return the explicit drawing-specified stock size, or null if none is present."
+
+
+def _positive_dimension(value: float | None) -> float | None:
+    if value is None or value <= 0:
+        return None
+    return float(value)
+
+
+def _shape_from_envelope(envelope: BoundingEnvelopeInterpretation) -> Shape:
+    diameter = _positive_dimension(envelope.diameter)
+    thickness = _positive_dimension(envelope.thickness)
+    width = _positive_dimension(envelope.width)
+    if diameter is not None and thickness is None and width is None:
+        return Shape.ROUND
+    if diameter is None and (thickness is not None or width is not None):
+        return Shape.FLAT
+    return Shape.UNKNOWN
+
+
+def _envelope_dimension(value: float | None) -> DimensionEvidence:
+    resolved = _positive_dimension(value)
+    return DimensionEvidence(
+        value=resolved,
+        source=(
+            DimensionSource.EXPLICIT_OVERALL
+            if resolved is not None
+            else DimensionSource.NOT_FOUND
+        ),
+        dimension_path=None,
+        evidence=(
+            "Single-purpose bounding-dimensions read." if resolved is not None else None
+        ),
+        uncertainty=None,
+        chain_terms=[],
+    )
+
+
+def _apply_bounding_envelope(
+    envelope: BoundingEnvelopeInterpretation,
+    stock: DrawingStockInterpretation | None,
+) -> GeometryInterpretation | None:
+    """Build geometry from the simple envelope and optional explicit stock callout."""
+
+    shape = _shape_from_envelope(envelope)
+    units = envelope.units
+    callout = stock.drawing_stock_callout if stock is not None else None
+    if shape is Shape.UNKNOWN and callout is not None:
+        shape = callout.shape
+    if units is Units.UNKNOWN and callout is not None:
+        units = callout.units
+    if shape is Shape.UNKNOWN or units is Units.UNKNOWN:
+        return None
+
+    bounding = BoundingDimensions(
+        units=units,
+        diameter=_envelope_dimension(envelope.diameter),
+        thickness=_envelope_dimension(envelope.thickness),
+        width=_envelope_dimension(envelope.width),
+        length=_envelope_dimension(envelope.length),
+    )
+    return GeometryInterpretation(
+        shape=shape,
+        bounding=bounding,
+        drawing_stock_callout=callout,
+        projection="UNKNOWN",
+        identified_views=[],
+        warnings=[],
+        conflicts=[],
+        unsupported_reason=None,
+    )
 
 
 class ModelOutputError(RuntimeError):
@@ -250,7 +322,7 @@ def _merge_dimension_recovery(
 
 
 class OpenAISpecializedReaderClient:
-    """Run Terra title/material and Sol geometry reads in parallel."""
+    """Run independent material, bounding-dimension, and stock-callout reads."""
 
     def __init__(
         self,
@@ -268,13 +340,21 @@ class OpenAISpecializedReaderClient:
             text_format=TitleBlockInterpretation,
             prompt_path=TITLE_PROMPT_PATH,
         )
-        self.geometry_reader = _FocusedPdfReader(
+        self.stock_reader = _FocusedPdfReader(
             api_key=api_key,
             model=sol_model,
             reasoning_effort=reasoning_effort,
-            task=GEOMETRY_TASK,
-            text_format=GeometryInterpretation,
-            prompt_path=GEOMETRY_PROMPT_PATH,
+            task=STOCK_TASK,
+            text_format=DrawingStockInterpretation,
+            prompt_path=STOCK_PROMPT_PATH,
+        )
+        self.bounds_reader = _FocusedPdfReader(
+            api_key=api_key,
+            model=sol_model,
+            reasoning_effort=reasoning_effort,
+            task=BOUNDS_TASK,
+            text_format=BoundingEnvelopeInterpretation,
+            prompt_path=BOUNDS_PROMPT_PATH,
         )
         self.recovery_reader = _FocusedImageReader(
             api_key=api_key,
@@ -283,15 +363,16 @@ class OpenAISpecializedReaderClient:
         )
 
     async def interpret_pdf(self, pdf_bytes: bytes, filename: str) -> SpecializedReaderBatch:
-        title_outcome, geometry_outcome = await asyncio.gather(
+        title_outcome, stock_outcome, bounds_outcome = await asyncio.gather(
             self.title_reader.interpret_pdf(pdf_bytes, filename),
-            self.geometry_reader.interpret_pdf(pdf_bytes, filename),
+            self.stock_reader.interpret_pdf(pdf_bytes, filename),
+            self.bounds_reader.interpret_pdf(pdf_bytes, filename),
             return_exceptions=True,
         )
         failures: list[ReaderFailure] = []
         title_result: TitleBlockReaderResult | None = None
         geometry_result: GeometryReaderResult | None = None
-        model_calls_attempted = 2
+        model_calls_attempted = 3
 
         if isinstance(title_outcome, BaseException):
             failures.append(
@@ -306,15 +387,41 @@ class OpenAISpecializedReaderClient:
                 interpretation=title_outcome,
             )
 
-        if isinstance(geometry_outcome, BaseException):
+        stock: DrawingStockInterpretation | None = None
+        if isinstance(stock_outcome, BaseException):
             failures.append(
                 ReaderFailure(
-                    reader_model=self.geometry_reader.model,
-                    error=str(geometry_outcome),
+                    reader_model=f"{self.stock_reader.model} stock-callout read",
+                    error=str(stock_outcome),
                 )
             )
         else:
-            missing_axes = _missing_stock_axes(geometry_outcome)
+            stock = stock_outcome
+
+        envelope: BoundingEnvelopeInterpretation | None = None
+        if isinstance(bounds_outcome, BaseException):
+            failures.append(
+                ReaderFailure(
+                    reader_model=f"{self.bounds_reader.model} bounding read",
+                    error=str(bounds_outcome),
+                )
+            )
+        else:
+            envelope = bounds_outcome
+
+        if envelope is None and stock is not None and stock.drawing_stock_callout is not None:
+            callout = stock.drawing_stock_callout
+            envelope = BoundingEnvelopeInterpretation(
+                units=callout.units,
+                diameter=None,
+                thickness=None,
+                width=None,
+                length=None,
+            )
+        geometry = _apply_bounding_envelope(envelope, stock) if envelope is not None else None
+
+        if geometry is not None:
+            missing_axes = _missing_stock_axes(geometry)
             recovered_axes: list[DimensionAxis] = []
             if missing_axes:
                 model_calls_attempted += 1
@@ -322,16 +429,16 @@ class OpenAISpecializedReaderClient:
                     crops = await asyncio.to_thread(
                         render_dimension_recovery_crops,
                         pdf_bytes,
-                        _recovery_anchor_texts(geometry_outcome, missing_axes),
+                        _recovery_anchor_texts(geometry, missing_axes),
                     )
                     recovery = await self.recovery_reader.interpret_images(
                         crops,
-                        shape=geometry_outcome.shape,
-                        units=geometry_outcome.bounding.units,
+                        shape=geometry.shape,
+                        units=geometry.bounding.units,
                         axes=missing_axes,
                     )
                     recovered_axes = _merge_dimension_recovery(
-                        geometry_outcome,
+                        geometry,
                         recovery,
                         missing_axes,
                     )
@@ -343,8 +450,8 @@ class OpenAISpecializedReaderClient:
                         )
                     )
             geometry_result = GeometryReaderResult(
-                reader_model=self.geometry_reader.model,
-                interpretation=geometry_outcome,
+                reader_model=self.bounds_reader.model,
+                interpretation=geometry,
                 recovered_axes=recovered_axes,
             )
 

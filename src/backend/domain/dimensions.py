@@ -8,7 +8,6 @@ from backend.domain.models import (
     DimensionEvidence,
     DimensionSource,
     DrawingInterpretation,
-    MaterialClassification,
     Shape,
     Units,
 )
@@ -100,14 +99,6 @@ def interpretation_to_bounding_data(
         raise DrawingUncertainError("Stock shape is ambiguous or missing.")
     if interpretation.bounding.units is Units.UNKNOWN:
         raise DrawingUncertainError("Drawing primary units are ambiguous or missing.")
-    if (
-        interpretation.material_classification is MaterialClassification.NOT_FOUND
-        or not (interpretation.material_callout_raw or "").strip()
-    ):
-        raise DrawingUncertainError(
-            "Material is missing or ambiguous; machining allowance cannot be selected."
-        )
-
     units = "IMPERIAL (IN)" if interpretation.bounding.units is Units.IN else "METRIC (MM)"
     warnings = list(interpretation.warnings)
 

@@ -197,14 +197,13 @@ class DrawingInterpretation(BaseModel):
 
 
 class TitleBlockInterpretation(BaseModel):
-    """Focused Terra read of material purchasing facts."""
+    """Focused Terra read of display-only material facts."""
 
     model_config = ConfigDict(extra="forbid")
 
     material_callout_raw: str | None
     material_callout_evidence: list[str]
     material_name: str | None
-    material_classification: MaterialClassification
     warnings: list[str]
 
 
@@ -221,6 +220,26 @@ class GeometryInterpretation(BaseModel):
     warnings: list[str]
     conflicts: list[str]
     unsupported_reason: str | None
+
+
+class BoundingEnvelopeInterpretation(BaseModel):
+    """Single-purpose read of the finished part's external envelope."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    units: Literal[Units.IN, Units.MM]
+    diameter: float | None
+    thickness: float | None
+    width: float | None
+    length: float | None
+
+
+class DrawingStockInterpretation(BaseModel):
+    """Independent read of an explicit raw-stock callout, when present."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    drawing_stock_callout: DrawingStockCallout | None
 
 
 class RecoveredDimension(BaseModel):
@@ -286,7 +305,7 @@ class SpecializedReaderBatch(BaseModel):
     title: TitleBlockReaderResult | None
     geometry: GeometryReaderResult | None
     failures: list[ReaderFailure]
-    model_calls_attempted: int = Field(default=2, ge=0)
+    model_calls_attempted: int = Field(default=3, ge=0)
 
 
 class FieldCandidate(BaseModel):
@@ -313,7 +332,7 @@ class MaterialCandidate(BaseModel):
 
     reader_model: str
     raw_callout: str | None
-    allowance_class: MaterialClassification
+    allowance_class: MaterialClassification | None
     evidence: list[str]
 
 

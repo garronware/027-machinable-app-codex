@@ -71,6 +71,23 @@ def test_flat_pipeline_preserves_extracted_axes_and_dimensions():
     assert result["_analysis"]["requires_machinist_verification"] is True
 
 
+def test_runtime_allowance_does_not_change_with_material_classification():
+    aluminum = _flat_interpretation()
+    tool_steel = aluminum.model_copy(deep=True)
+    tool_steel.material_callout_raw = "A2 Tool Steel"
+    tool_steel.material_classification = MaterialClassification.TOOL_STEEL
+
+    aluminum_adjusted = build_recommendation(aluminum)["Part_Basics"][
+        "Naked_Dims_Plus_Machining_Alwnc"
+    ]
+    tool_steel_adjusted = build_recommendation(tool_steel)["Part_Basics"][
+        "Naked_Dims_Plus_Machining_Alwnc"
+    ]
+
+    assert aluminum_adjusted == tool_steel_adjusted
+    assert aluminum_adjusted["Lookup_Tbl"] == "GENERAL"
+
+
 def test_flat_pipeline_returns_stock_size_when_length_is_missing():
     interpretation = _flat_interpretation()
     interpretation.bounding.length = _dimension(None)
