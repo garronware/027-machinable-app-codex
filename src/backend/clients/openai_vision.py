@@ -52,9 +52,22 @@ def _positive_dimension(value: float | None) -> float | None:
 
 
 def _shape_from_envelope(envelope: BoundingEnvelopeInterpretation) -> Shape:
-    diameter = _positive_dimension(envelope.diameter)
-    thickness = _positive_dimension(envelope.thickness)
-    width = _positive_dimension(envelope.width)
+    return _shape_from_cross_section(
+        diameter=envelope.diameter,
+        thickness=envelope.thickness,
+        width=envelope.width,
+    )
+
+
+def _shape_from_cross_section(
+    *,
+    diameter: float | None,
+    thickness: float | None,
+    width: float | None,
+) -> Shape:
+    diameter = _positive_dimension(diameter)
+    thickness = _positive_dimension(thickness)
+    width = _positive_dimension(width)
     if diameter is not None and thickness is None and width is None:
         return Shape.ROUND
     if diameter is None and (thickness is not None or width is not None):
@@ -93,7 +106,7 @@ def _apply_bounding_envelope(
         shape = callout.shape
     if units is Units.UNKNOWN and callout is not None:
         units = callout.units
-    if shape is Shape.UNKNOWN or units is Units.UNKNOWN:
+    if units is Units.UNKNOWN:
         return None
 
     bounding = BoundingDimensions(
@@ -255,7 +268,14 @@ def _missing_stock_axes(geometry: GeometryInterpretation) -> list[DimensionAxis]
         )
         if bounding.diameter.value is None and not cross_section_available:
             missing.append(DimensionAxis.DIAMETER)
-    if geometry.shape in (Shape.FLAT, Shape.ROUND) and bounding.length.value is None:
+    elif geometry.shape is Shape.UNKNOWN and all(
+        evidence.value is None
+        for evidence in (bounding.diameter, bounding.thickness, bounding.width)
+    ):
+        missing.extend(
+            [DimensionAxis.DIAMETER, DimensionAxis.THICKNESS, DimensionAxis.WIDTH]
+        )
+    if bounding.length.value is None:
         missing.append(DimensionAxis.LENGTH)
     return missing
 
@@ -318,6 +338,12 @@ def _merge_dimension_recovery(
         )
         if not claim.uncertainty and claim.source is not DimensionSource.NOT_FOUND:
             recovered.append(claim.axis)
+    if geometry.shape is Shape.UNKNOWN:
+        geometry.shape = _shape_from_cross_section(
+            diameter=geometry.bounding.diameter.value,
+            thickness=geometry.bounding.thickness.value,
+            width=geometry.bounding.width.value,
+        )
     return recovered
 
 

@@ -283,6 +283,129 @@ async def test_single_purpose_bounds_are_authoritative_and_infer_round():
 
 
 @pytest.mark.asyncio
+async def test_unresolved_shape_preserves_partial_bounds_after_recovery_attempt(monkeypatch):
+    class FakeReader:
+        def __init__(self, model: str, result):
+            self.model = model
+            self.result = result
+
+        async def interpret_pdf(self, pdf_bytes: bytes, filename: str):
+            return self.result
+
+    class EmptyRecoveryReader:
+        model = "gpt-5.6-sol"
+
+        async def interpret_images(self, crops, *, shape, units, axes):
+            assert shape is Shape.UNKNOWN
+            assert units is Units.MM
+            assert axes == [
+                DimensionAxis.DIAMETER,
+                DimensionAxis.THICKNESS,
+                DimensionAxis.WIDTH,
+            ]
+            return DimensionRecoveryInterpretation(dimensions=[])
+
+    monkeypatch.setattr(
+        "backend.clients.openai_vision.render_dimension_recovery_crops",
+        lambda *_args, **_kwargs: [PdfRegionCrop(page_number=1, region=None, png_bytes=b"png")],
+    )
+    client = OpenAISpecializedReaderClient(api_key="test-key")
+    client.title_reader = FakeReader("gpt-5.6-terra", _title())
+    client.stock_reader = FakeReader(
+        "gpt-5.6-sol", DrawingStockInterpretation(drawing_stock_callout=None)
+    )
+    client.bounds_reader = FakeReader(
+        "gpt-5.6-sol",
+        BoundingEnvelopeInterpretation(
+            units=Units.MM,
+            diameter=None,
+            thickness=None,
+            width=None,
+            length=72.47,
+        ),
+    )
+    client.recovery_reader = EmptyRecoveryReader()
+
+    batch = await client.interpret_pdf(b"%PDF-1.7\n", "round-part.pdf")
+    response = build_analysis_response(batch)
+
+    assert batch.geometry is not None
+    assert batch.geometry.interpretation.shape is Shape.UNKNOWN
+    assert response.shape.status.value == "MISSING"
+    assert response.dimensions.length.status.value == "RESOLVED"
+    assert response.dimensions.length.value == 72.47
+    assert response.recommendation is None
+
+
+@pytest.mark.asyncio
+async def test_unresolved_shape_recovery_can_infer_round_and_unlock_stock(monkeypatch):
+    class FakeReader:
+        def __init__(self, model: str, result):
+            self.model = model
+            self.result = result
+
+        async def interpret_pdf(self, pdf_bytes: bytes, filename: str):
+            return self.result
+
+    class RoundRecoveryReader:
+        model = "gpt-5.6-sol"
+
+        async def interpret_images(self, crops, *, shape, units, axes):
+            assert shape is Shape.UNKNOWN
+            assert units is Units.MM
+            assert axes == [
+                DimensionAxis.DIAMETER,
+                DimensionAxis.THICKNESS,
+                DimensionAxis.WIDTH,
+            ]
+            return DimensionRecoveryInterpretation(
+                dimensions=[
+                    RecoveredDimension(
+                        axis=DimensionAxis.DIAMETER,
+                        value=9.52,
+                        units=Units.MM,
+                        source=DimensionSource.EXPLICIT_OVERALL,
+                        evidence="Largest outside diameter is marked Ø9.52.",
+                        uncertainty=None,
+                    )
+                ]
+            )
+
+    monkeypatch.setattr(
+        "backend.clients.openai_vision.render_dimension_recovery_crops",
+        lambda *_args, **_kwargs: [PdfRegionCrop(page_number=1, region=None, png_bytes=b"png")],
+    )
+    client = OpenAISpecializedReaderClient(api_key="test-key")
+    client.title_reader = FakeReader("gpt-5.6-terra", _title())
+    client.stock_reader = FakeReader(
+        "gpt-5.6-sol", DrawingStockInterpretation(drawing_stock_callout=None)
+    )
+    client.bounds_reader = FakeReader(
+        "gpt-5.6-sol",
+        BoundingEnvelopeInterpretation(
+            units=Units.MM,
+            diameter=None,
+            thickness=None,
+            width=None,
+            length=72.47,
+        ),
+    )
+    client.recovery_reader = RoundRecoveryReader()
+
+    batch = await client.interpret_pdf(b"%PDF-1.7\n", "round-part.pdf")
+    response = build_analysis_response(batch)
+
+    assert batch.geometry is not None
+    assert batch.geometry.interpretation.shape is Shape.ROUND
+    assert batch.geometry.recovered_axes == [DimensionAxis.DIAMETER]
+    assert response.shape.value == "ROUND"
+    assert response.dimensions.diameter.value == 9.52
+    assert response.dimensions.length.value == 72.47
+    assert response.recommendation is not None
+    assert response.recommendation.stock_shape == "Round"
+
+
+@pytest.mark.asyncio
 async def test_material_failure_does_not_block_round_stock_recommendation():
     class FakeReader:
         def __init__(self, model: str, result):
