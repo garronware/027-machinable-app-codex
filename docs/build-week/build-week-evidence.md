@@ -425,7 +425,7 @@ Week is not automatically classified as new if its behavior or data came from
   regression tests. The separate simplified-version build spec is outside this
   repository at
   `/Users/garronware/dev/my-repos/029-machinable-simple-version/BUILD_SPEC.md`.
-- Commit: pending on the isolated feature branch.
+- Commit: `e7a284e` on the isolated feature branch.
 - Verification: the full offline gate passes: Ruff, frontend ESLint, strict
   TypeScript, 66 deterministic backend tests, and the Next.js production build.
   Focused tests prove `Dia + L` produces Round stock, unreadable material does
