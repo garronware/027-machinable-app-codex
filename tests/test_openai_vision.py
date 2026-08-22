@@ -91,7 +91,29 @@ def test_independent_prompts_keep_bounds_and_drawing_stock_separate():
     assert client.bounds_reader.task == (
         "Return the maximum external finished-part bounding dimensions of this part."
     )
-    assert "maximum external finished-part bounding dimensions" in client.bounds_reader.prompt
+    assert client.bounds_reader.prompt == (
+        "# Task\n"
+        "Return bounding dimensions for this part.\n"
+        "\n"
+        "# How to interpret lines in engineering drawings\n"
+        "\n"
+        "- Boundary Lines = thick continuous lines that indicate edges of the part that "
+        "would be visible in the current view.\n"
+        "\n"
+        "- Center Lines =  Thin Dash-Dot Lines (i.e. alternating long-short dashes) that "
+        "extend beyond the edges of the part and indicate symmetry, a central axis, or a "
+        "circular feature).\n"
+        "\n"
+        "- Extension Lines = Thin continuous lines that project outward from the part to "
+        "define exactly where a specific dimension starts and ends. Extension lines never "
+        "touch the part directly.\n"
+        "\n"
+        "- Dimension Lines = Thin continuous lines that end in arrowheads and are annotated "
+        "with a numerical value (the dimension) to indicate the length of a feature.\n"
+        "\n"
+        "- Hidden-Edge Lines = Thin dashed lines that indicate edges of the part that would "
+        "not be visible\n"
+    )
     assert "drawing-specified stock" not in client.bounds_reader.prompt
     assert "drawing-specified stock" in client.stock_reader.task
     assert "purchasing form" in client.stock_reader.prompt
