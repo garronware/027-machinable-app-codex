@@ -185,9 +185,7 @@ export default function HomePage() {
 
       <input
         ref={fileInput}
-        className="visually-hidden"
-        aria-hidden="true"
-        tabIndex={-1}
+        hidden
         type="file"
         accept="application/pdf,.pdf"
         onChange={(event) => {
