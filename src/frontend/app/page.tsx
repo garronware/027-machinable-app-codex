@@ -166,14 +166,15 @@ export default function HomePage() {
   }
 
   return (
-    <main>
+    <>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <main id="main-content">
       <header className="app-header">
         <div className="brand">
-          <span className="brand-mark">M</span>
-          <div>
-            <strong>Machinable</strong>
-            <span>Drawing review for raw stock</span>
-          </div>
+          <strong>Machinable.</strong>
+          <span>Drawing review for raw stock</span>
         </div>
         {file ? (
           <button className="button button-secondary" onClick={reset} type="button">
@@ -185,6 +186,8 @@ export default function HomePage() {
       <input
         ref={fileInput}
         className="visually-hidden"
+        aria-hidden="true"
+        tabIndex={-1}
         type="file"
         accept="application/pdf,.pdf"
         onChange={(event) => {
@@ -221,21 +224,33 @@ export default function HomePage() {
               Choose PDF
             </button>
           </div>
-          {error ? <div className="error-banner">{error}</div> : null}
+          {error ? (
+            <div className="error-banner" role="alert">
+              {error}
+            </div>
+          ) : null}
         </section>
       ) : (
         <>
           <div className="file-strip">
-            <div>
+            <div aria-live="polite" role="status">
               <strong>{file.name}</strong>
               <span>{isAnalyzing ? "Analyzing drawing…" : "Analysis complete"}</span>
             </div>
-            <button className="text-button" onClick={() => fileInput.current?.click()}>
+            <button
+              className="text-button"
+              onClick={() => fileInput.current?.click()}
+              type="button"
+            >
               Replace
             </button>
           </div>
 
-          {error ? <div className="error-banner workspace-error">{error}</div> : null}
+          {error ? (
+            <div className="error-banner workspace-error" role="alert">
+              {error}
+            </div>
+          ) : null}
 
           <div className="workspace">
             <section className="drawing-pane" aria-label="Original drawing">
@@ -246,8 +261,8 @@ export default function HomePage() {
 
             <section className="review-pane result-pane" aria-label="Analysis result">
               {isAnalyzing ? (
-                <div className="analysis-loading">
-                  <span className="spinner" />
+                <div className="analysis-loading" aria-live="polite" role="status">
+                  <span className="spinner" aria-hidden="true" />
                   <h2>Reading the drawing</h2>
                   <p>Finding the material, process, and stock size.</p>
                 </div>
@@ -258,6 +273,7 @@ export default function HomePage() {
           </div>
         </>
       )}
-    </main>
+      </main>
+    </>
   );
 }
