@@ -174,7 +174,7 @@ export default function HomePage() {
       <header className="app-header">
         <div className="brand">
           <strong>Machinable.</strong>
-          <span>Drawing review for raw stock</span>
+          <span>Drawing review for faster quoting</span>
         </div>
         {file ? (
           <button className="button button-secondary" onClick={reset} type="button">
@@ -197,9 +197,9 @@ export default function HomePage() {
       {!file ? (
         <section className="welcome">
           <div className="welcome-copy">
-            <p className="eyebrow">From print to raw stock</p>
-            <h1>Know what material to order before the first cut.</h1>
-            <p>Upload a digitally generated PDF part drawing.</p>
+            <p className="eyebrow">Only what matters for quoting</p>
+            <h1>Read engineering drawings like a machinist.</h1>
+            <p>Upload a 2D engineering drawing</p>
           </div>
           <div
             className={`dropzone ${dragActive ? "dropzone-active" : ""}`}
