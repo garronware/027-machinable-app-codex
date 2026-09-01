@@ -4,79 +4,84 @@ Use this checklist in order. Update the boxes and notes as work proceeds. The fi
 
 ## 1. Protect the working application
 
-- [ ] Confirm the repository path is `/Users/garronware/dev/my-repos/027-machinable-for-build-week`.
-- [ ] Read `AGENTS.md`, `README.md`, `LAUNCH-PLAN.md`, and `LAUNCH-CHECKLIST.md`.
-- [ ] Check Git status and preserve all existing user work.
-- [ ] Record the current branch and commit.
-- [ ] Record the current Vercel production URL and deployment.
-- [ ] Record the current Railway URL and deployment.
-- [ ] Record the current allowed frontend origins without exposing secrets.
-- [ ] Confirm the enforced OpenAI monthly cap is $25.
-- [ ] Do not change the OpenAI project or keys for this launch.
+- [x] Confirm the repository path is `/Users/garronware/dev/my-repos/027-machinable-for-build-week`.
+- [x] Read `AGENTS.md`, `README.md`, `LAUNCH-PLAN.md`, and `LAUNCH-CHECKLIST.md`.
+- [x] Check Git status and preserve all existing user work.
+- [x] Record the current branch and commit.
+- [x] Record the current Vercel production URL and deployment.
+- [x] Record the current Railway URL and deployment.
+- [x] Record the current allowed frontend origins without exposing secrets.
+- [x] Confirm the enforced OpenAI monthly cap is $25.
+- [x] Do not change the OpenAI project or keys for this launch.
 
 ## 2. Verify the current baseline
 
-- [ ] Run the existing deterministic offline checks.
-- [ ] Do not run paid evaluations without approval.
-- [ ] Open the current production application.
-- [ ] Run each approved public sample.
-- [ ] Save the returned dimensions, stock recommendation, warnings, and screenshots.
-- [ ] Confirm `Sample Drawing 1` returns a 5.567-inch finished overall length.
-- [ ] Confirm `Sample Drawing 1` returns a 5.692-inch stock length.
-- [ ] Report any mismatch before changing production configuration.
+- [x] Run the existing deterministic offline checks.
+- [x] Do not run paid evaluations without approval.
+- [x] Open the current production application.
+- [x] Run the user-approved public sample.
+- [x] Save the expected finished dimensions, returned stock recommendation, warnings, and screenshot.
+- [x] Confirm `part_print_mm_in_round_29507460.pdf` has an expected 18.966 mm finished diameter and 121.5 mm finished length.
+- [x] Confirm the current app returns 1215 Steel round bar, 7/8-inch stock diameter, and 4.908-inch cut length.
+- [x] Report any mismatch before changing production configuration. No mismatch was found.
 
 Stop if the current application is not working. Troubleshoot the existing deployment before adding a domain.
 
 ## 3. Confirm first-launch exclusions
 
-- [ ] Do not change application runtime code.
-- [ ] Do not change prompts, models, or reasoning effort.
-- [ ] Do not change upload validation or PDF processing.
-- [ ] Do not change bounding-dimension or stock calculations.
-- [ ] Do not add authentication or email verification.
-- [ ] Do not add per-user quotas.
-- [ ] Do not add Redis.
-- [ ] Do not add Turnstile.
-- [ ] Do not add a quota hook or kill switch.
-- [ ] Do not add new application rate limits.
-- [ ] Do not add payment.
-- [ ] Do not add a one-click sample runner.
+- [x] Do not change application runtime code.
+- [x] Do not change prompts, models, or reasoning effort.
+- [x] Do not change upload validation or PDF processing.
+- [x] Do not change bounding-dimension or stock calculations.
+- [x] Do not add authentication or email verification.
+- [x] Do not add per-user quotas.
+- [x] Do not add Redis.
+- [x] Do not add Turnstile.
+- [x] Do not add a quota hook or kill switch.
+- [x] Do not add new application rate limits.
+- [x] Do not add payment.
+- [x] Do not add a one-click sample runner.
 
 ## 4. Prepare the application domain
 
-- [ ] Inspect the existing Vercel application project without changing it.
-- [ ] Ask for approval before adding a production domain.
-- [ ] Add `app.machinable.ai` to the existing Vercel application project.
-- [ ] Copy Vercel's exact DNS and verification records.
-- [ ] Ask for approval before changing Cloudflare.
-- [ ] Add only Vercel's required records in Cloudflare.
-- [ ] Wait for Vercel to verify the domain.
-- [ ] Confirm HTTPS works.
+- [x] Inspect the existing Vercel application project without changing it.
+- [x] Ask for approval before adding a production domain.
+- [x] Add `app.machinable.ai` to the existing Vercel application project.
+- [x] Copy Vercel's exact DNS and verification records.
+- [x] Ask for approval before changing Cloudflare.
+- [x] Add only Vercel's required records in Cloudflare.
+- [x] Wait for Vercel to verify the domain.
+- [x] Confirm HTTPS works.
 
 ## 5. Update the allowed origin
 
-- [ ] Record the current Railway `ALLOWED_ORIGINS` value.
-- [ ] Confirm the existing Vercel origin remains in the new value.
-- [ ] Add `https://app.machinable.ai`.
-- [ ] Ask for approval before changing Railway production settings.
-- [ ] Apply the approved setting.
-- [ ] Confirm the Railway backend remains healthy.
-- [ ] Confirm the old frontend origin still reaches the backend.
-- [ ] Confirm the new frontend origin reaches the backend.
+- [x] Record the current Railway `ALLOWED_ORIGINS` value.
+- [x] Confirm the existing Vercel origin remains in the new value.
+- [x] Add `https://app.machinable.ai`.
+- [x] Ask for approval before changing Railway production settings.
+- [x] Apply the approved setting.
+- [x] Confirm the Railway backend remains healthy.
+- [x] Confirm the old frontend origin still reaches the backend.
+- [x] Confirm the new frontend origin reaches the backend.
 
 ## 6. Verify both application URLs
 
-- [ ] Load the existing Vercel application URL over HTTPS.
-- [ ] Load `https://app.machinable.ai` over HTTPS.
-- [ ] Test file selection and upload on both URLs.
-- [ ] Run the same approved samples on both URLs.
-- [ ] Compare dimensions, stock recommendations, and warnings with the baseline.
-- [ ] Confirm invalid and oversized files still behave as before.
-- [ ] Confirm correction and recalculation still work.
-- [ ] Confirm no browser CORS errors appear.
-- [ ] Record the completed domain configuration.
+- [x] Load the existing Vercel application URL over HTTPS.
+- [x] Load `https://app.machinable.ai` over HTTPS.
+- [x] Test file selection and upload on both URLs.
+- [x] Run the same approved samples on both URLs.
+- [x] Compare dimensions, stock recommendations, and warnings with the baseline.
+- [x] Confirm invalid and oversized files still behave as before.
+- [ ] Confirm correction and recalculation still work in the production UI.
+  The existing backend recalculation endpoint returns the expected deterministic
+  result, but the existing frontend has no correction or recalculation controls.
+  This pre-existing gap was recorded without changing runtime code.
+- [x] Confirm no browser CORS errors appear.
+- [x] Record the completed domain configuration.
 
-The first application launch is complete here. Do not begin visual alignment until the website design receives explicit approval.
+The domain launch is complete. The first application launch remains open only
+on the pre-existing correction-controls item above. Do not begin visual
+alignment until the website design receives explicit approval.
 
 ## 7. Approve the shared visual system
 
@@ -171,9 +176,84 @@ The first application launch is complete here. Do not begin visual alignment unt
 
 ## Deferred abuse protection
 
-- [ ] Leave abuse protection unimplemented for the first launch.
+- [x] Leave abuse protection unimplemented for the first launch.
 - [ ] Revisit usage controls after observing real traffic and cost.
 - [ ] Add future controls at `/analyze` in separate work.
 - [ ] Test each future control independently from print processing.
 - [ ] Provide an owner path that does not interfere with normal use.
 - [ ] Make sure failed or rejected files do not consume a future successful-run allowance.
+
+## Launch work log — 2026-08-24
+
+- Baseline evidence: [`docs/launch/2026-08-24-launch-baseline.md`](docs/launch/2026-08-24-launch-baseline.md).
+- Repository baseline: clean `main` at
+  `9c002c60f95562f780e650ad1f953551503bec4f`, one commit ahead of
+  `origin/main` before these checklist/evidence edits.
+- Vercel baseline: production alias
+  `https://027-machinable-for-build-week.vercel.app`, deployment
+  `dpl_gQadZkDcSGHana6ivhnwZSqKsv9Q`, source commit
+  `13d0fadd8a50de6a6754d1cae7d11ac78b930997`.
+- Railway baseline: `https://machinable-api.up.railway.app`, active deployment
+  `ff6b6640-83cb-405e-8056-fa04708ff729`, HTTP 200 health check, and
+  `ALLOWED_ORIGINS=https://027-machinable-for-build-week.vercel.app`.
+- CORS baseline: the existing Vercel origin passes preflight; the planned app
+  origin is rejected until the approved Railway update.
+- DNS baseline: `app.machinable.ai` has no A, AAAA, or CNAME record;
+  `machinable.ai` uses Cloudflare nameservers.
+- Offline verification: `make check` passed Ruff, ESLint, strict TypeScript,
+  and 68 pytest tests. No paid evaluation ran.
+- Production UI baseline: the empty upload state loaded over HTTPS without app
+  console warnings or errors.
+- Sample baseline: the user approved
+  `part_print_mm_in_round_29507460.pdf` for this live test. The app returned
+  1215 Steel, Round Bar, 7/8-inch stock diameter, 4.908-inch cut length, a
+  1-foot drop length, and 28 parts per 12-foot bar, with no browser warnings or
+  errors. The result matches the approved expected dimensions and deterministic
+  allowance. Screenshot:
+  [`docs/launch/2026-08-24-existing-production-sample-29507460.jpg`](docs/launch/2026-08-24-existing-production-sample-29507460.jpg).
+- OpenAI cap: the user confirmed the enforced monthly limit is $25.
+- Vercel domain change: after explicit approval, `app.machinable.ai` was added
+  to the existing Vercel project. Vercel reports ownership verified and requires
+  one DNS record: `A app.machinable.ai 76.76.21.21`. No separate verification
+  record was requested.
+- Post-Vercel check: the existing URL returned HTTP 200 and the approved sample
+  returned the same 1215 Steel, 7/8-inch round-bar, and 4.908-inch cut-length
+  result. The new address cannot resolve until Cloudflare is updated. Screenshot:
+  [`docs/launch/2026-08-24-after-vercel-domain-old-url-sample-29507460.jpg`](docs/launch/2026-08-24-after-vercel-domain-old-url-sample-29507460.jpg).
+- Cloudflare DNS change: after explicit approval, the single Vercel-requested
+  DNS-only record `A app.machinable.ai 76.76.21.21` was added. Vercel verified
+  the domain and generated its HTTPS certificate; the new address returns HTTP
+  200 over HTTPS.
+- Post-Cloudflare check: the existing address still returned the baseline
+  sample result. The new address loaded and accepted file selection, but its
+  analysis request was blocked as expected because the separately approval-gated
+  Railway origin setting has not yet been changed. Screenshots:
+  [`docs/launch/2026-08-24-after-cloudflare-old-url-sample-29507460.jpg`](docs/launch/2026-08-24-after-cloudflare-old-url-sample-29507460.jpg)
+  and
+  [`docs/launch/2026-08-24-after-cloudflare-new-url-sample-29507460.jpg`](docs/launch/2026-08-24-after-cloudflare-new-url-sample-29507460.jpg).
+- Railway origin change: after explicit approval, `ALLOWED_ORIGINS` was changed
+  to `https://027-machinable-for-build-week.vercel.app,https://app.machinable.ai`.
+  The old address was preserved. Railway applied the setting using the same
+  application source and activated deployment
+  `f870dfeb-f39d-4435-96a7-d8cfe2cbcbaa`.
+- Post-Railway checks: backend health returned HTTP 200; both exact origins
+  passed the browser preflight check; both addresses analyzed the approved
+  sample without browser warnings or errors and returned the baseline 1215
+  Steel, 7/8-inch round-bar, 4.908-inch cut-length, 1-foot drop, and 28-part
+  yield result. Screenshots:
+  [`docs/launch/2026-08-24-after-railway-old-url-sample-29507460.jpg`](docs/launch/2026-08-24-after-railway-old-url-sample-29507460.jpg)
+  and
+  [`docs/launch/2026-08-24-after-railway-new-url-sample-29507460.jpg`](docs/launch/2026-08-24-after-railway-new-url-sample-29507460.jpg).
+- Upload safety check: both addresses rejected a non-PDF with the existing
+  digitally-generated-PDF message and rejected a 50-MB-plus PDF with the
+  existing size-limit message. Temporary test files were deleted afterward.
+- Existing behavior note: static review confirms no durable uploaded-PDF or
+  raw-model-response persistence. It also found that `/recalculate` exists and
+  passed a production smoke check using synthetic values without a PDF or model
+  call, but the current frontend does not expose correction or recalculation
+  controls. No runtime code was changed to address that existing discrepancy.
+- Production changes: only the approved Vercel domain assignment, approved
+  Cloudflare DNS record, and approved Railway origin setting were changed. No
+  runtime application code changed.
+- Final local verification: `make check` passed Ruff, ESLint, strict
+  TypeScript, and all 68 offline tests after the configuration work.
