@@ -46,6 +46,29 @@ claim is supported.
 Before creating a file or directory, show the user its proposed path, purpose,
 and reason. Approval may cover one coherent batch.
 
+## Canonical Repository and Deployment
+
+- The sole active local working copy is
+  `/Users/garronware/dev/my-repos/027-machinable-app-codex`.
+- The canonical GitHub repository is
+  `garronware/027-machinable-app-codex`.
+- Keep the existing Vercel project name `027-machinable-for-build-week`; its
+  project identity preserves `app.machinable.ai` and the existing
+  `027-machinable-for-build-week.vercel.app` address independently of the
+  GitHub repository name.
+- Production must always flow from the GitHub `main` branch: Vercel deploys the
+  frontend and Railway deploys the backend. Never deploy production directly
+  from a local checkout, run `vercel --prod`, manually promote a local build,
+  or trigger a Railway deployment that bypasses GitHub.
+- For every change, create a `codex/` branch from `main`, commit it, push it to
+  GitHub, verify the Vercel preview and applicable checks, and obtain the
+  user's approval before merging to `main`. The merge to GitHub `main` is what
+  triggers the production deployments.
+- The exact pre-consolidation production tree is preserved by the annotated
+  Git tag `production-baseline-2026-09-01`. If rollback is needed, restore that
+  tree in a new GitHub commit on a reviewed branch and merge it to `main` so
+  Vercel and Railway redeploy through the same GitHub-first path.
+
 ## Technology Direction
 
 - Frontend: desktop-first Next.js/React with strict TypeScript.
