@@ -1,4 +1,6 @@
-.env
+# Local environment files can contain credentials.
+.env*
+!.env.example
 .DS_Store
 .pytest_cache/
 .ruff_cache/
